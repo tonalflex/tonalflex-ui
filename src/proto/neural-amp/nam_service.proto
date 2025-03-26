@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+service NeuralAmpService {
+    rpc GetNAMFileList (EmptyRequest) returns (NAMFileList);  // ✅ Get list of available NAM files
+    rpc GetNAMStoragePath (EmptyRequest) returns (NAMStoragePath);  // ✅ Get current storage path
+    rpc SwitchNAMFile (NAMFileRequest) returns (NAMFileResponse);  // ✅ Switch to a NAM file
+    rpc DeleteNAMFile (NAMFileRequest) returns (NAMFileResponse);  // ✅ Delete a NAM file
+    rpc UploadNAMFile (stream NAMFileChunk) returns (UploadResponse);  // ✅ Upload a new NAM file
+    rpc SetStorageLocation (StorageLocationRequest) returns (StorageLocationResponse) {}
+}
+
+message EmptyRequest {}
+
+message NAMFileList {
+    repeated string filenames = 1;
+}
+
+message NAMStoragePath {
+    string path = 1;  // ✅ Returns the storage path (default or SD card)
+}
+
+message NAMFileRequest {
+    string filename = 1;
+}
+
+message NAMFileChunk {
+    bytes data = 1;
+    string filename = 2;
+}
+
+message NAMFileResponse {
+    string message = 1;
+}
+
+message UploadResponse {
+    string message = 1;
+}
+
+message StorageLocationRequest {
+    bool use_sdcard = 1;  // true for SD card, false for internal
+}
+
+message StorageLocationResponse {
+    string message = 1;
+    string current_path = 2;
+}
