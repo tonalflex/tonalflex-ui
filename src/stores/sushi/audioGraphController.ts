@@ -263,17 +263,12 @@ class SushiAudioGraphController {
     }
   }
 
-  async deleteProcessorFromTrack(processorId: number, trackId: number): Promise<void> {
+  async deleteProcessorFromTrack(request: DeleteProcessorRequest): Promise<void> {
     try {
-      await this.client.deleteProcessorFromTrack(
-        DeleteProcessorRequest.create({
-          processor: { id: processorId },
-          track: { id: trackId },
-        })
-      );
-      console.log(`Deleted processor ID ${processorId} from track ID ${trackId}`);
+      await this.client.deleteProcessorFromTrack(request);
+      console.log(`Deleted processor ID ${request.processor?.id} from track ID ${request.track?.id}`);
     } catch (err) {
-      this.handleError(err, `Error deleting processor ID ${processorId} from track ID ${trackId}`);
+      this.handleError(err, `Error deleting processor ID ${request.processor?.id} from track ID ${request.track?.id}`);
       throw err;
     }
   }
