@@ -6,6 +6,8 @@
       <NavbarSpinner
         :items="trackNames"
         v-model="currentTrackIndex"
+        :emit-on-current-click="true"
+        @current-click="openTrackSettings"
       />
     </div>
 
@@ -80,6 +82,10 @@
 
     <button class="add-track-btn" @click="addTrack">Add New Track</button>
   </div>
+  <div class="trackSettings" v-if="showTrackSettings">
+    <h2>Track Settings</h2>
+    <button @click="closeTrackSettings">close</button>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -126,6 +132,7 @@ const showPlugin = ref(false);
 const currentIndex = ref<number | null>(null);
 const dragIndex = ref<number | null>(null);
 const selectedPluginId = ref<string | null>(null);
+const showTrackSettings = ref(false);
 
 // Computed properties
 const trackNames = computed(() => tracks.value.map((track) => track.name));
@@ -242,6 +249,15 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
   currentPluginChain.value.splice(targetIndex, 0, draggedPlugin);
   dragIndex.value = null;
 };
+
+const openTrackSettings = () => {
+  console.log("parent current click");
+  showTrackSettings.value = true;
+}
+
+const closeTrackSettings = () => {
+  showTrackSettings.value = false;
+}
 
 // Lifecycle
 onMounted(() => {
@@ -513,5 +529,20 @@ onMounted(() => {
 
 .add-track-btn:hover {
   background-color: #45a049;
+}
+
+.trackSettings{
+  position: fixed;
+  top: 72px;
+  left: 80px;
+  width: calc(100vw - 80px);
+  height: calc(100vh - 72px);
+  background: rgba(0, 0, 255, 0.9);
+  color: white;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 </style>

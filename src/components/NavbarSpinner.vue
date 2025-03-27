@@ -35,9 +35,10 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 const props = defineProps<{
   items: string[];
   modelValue: number;
+  emitOnCurrentClick?: boolean; 
 }>();
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'current-click']);
 const containerRef = ref<HTMLElement | null>(null);
 const itemWidth = ref(0);
 
@@ -60,7 +61,9 @@ onBeforeUnmount(() => {
 watch(containerRef, calculateItemWidth);
 
 const handleClick = (index: number) => {
-  if (index !== props.modelValue) {
+  if (index === props.modelValue && props.emitOnCurrentClick) {
+    emit('current-click');
+  } else if (index !== props.modelValue) {
     emit('update:modelValue', index);
   }
 };
@@ -110,5 +113,6 @@ const handleClick = (index: number) => {
   transform: scale(1.1);
   opacity: 1;
   pointer-events: auto;
+  cursor: pointer;
 }
 </style>
