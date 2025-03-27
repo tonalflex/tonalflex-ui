@@ -3,86 +3,53 @@
   <div class="effect-map-wrapper">
     <!-- Synced Navbar Slider showing prev/active/next -->
     <div class="navbar-section">
-      <div class="navbar-scroll">
-        <div
-          class="navbar-track"
-          :style="{
-            transform: `translateX(-${navbarOffset}%)`,
-            transition: isDragging ? 'none' : 'transform 0.3s ease',
-          }"
-        >
-          <div
-            v-for="(name, index) in trackNames"
-            :key="index"
-            class="navbar-label"
-            :class="{ 
-              active: index === currentTrackIndex,
-              prev: index === currentTrackIndex - 1,
-              next: index === currentTrackIndex + 1
-            }"
-            @click="selectTrack(index)"
-          >
-            {{ name }}
-          </div>
-        </div>
-      </div>
+      <NavbarSpinner
+        :items="trackNames"
+        v-model="currentTrackIndex"
+      />
     </div>
 
-    <!-- Carousel Container -->
-    <div
-      class="charter-container carousel"
-      @mousedown="startMouseDrag"
-      @touchstart="(e) => startDrag(e.touches[0].clientX)"
-      @touchmove="(e) => onDrag(e.touches[0].clientX)"
-      @touchend="endDrag"
+    <!-- Carousel Component -->
+    <Carousel
+      :items="tracks"
+      v-model:current-index="currentTrackIndex"
+      class="charter-container"
     >
-      <div
-        class="carousel-track"
-        :style="{
-          transform: `translateX(-${carouselOffset}%)`,
-          transition: isDragging ? 'none' : 'transform 0.3s ease',
-        }"
-      >
-        <div
-          v-for="(track, tIndex) in tracks"
-          :key="tIndex"
-          class="carousel-page"
-        >
-          <div class="grid-container">
-            <div class="effect-map">
-              <div class="direction-label">
-                <CableIcon class="cable-icon" />
-              </div>
-              <div class="line"></div>
+      <template #default="{ item: track, index }">
+        <div class="grid-container">
+          <div class="effect-map">
+            <div class="direction-label">
+              <CableIcon class="cable-icon" />
+            </div>
+            <div class="line"></div>
 
-              <div
-                v-for="(plugin, index) in track.plugins"
-                :key="plugin.slotId"
-                class="button-wrapper"
-                @dragover.prevent
-                @drop="onDrop($event, index)"
+            <div
+              v-for="(plugin, index) in track.plugins"
+              :key="plugin.slotId"
+              class="button-wrapper"
+              @dragover.prevent
+              @drop="onDrop($event, index)"
+            >
+              <button
+                class="box-btn"
+                :class="{ selected: plugin.id !== null }"
+                @click="handlePluginClick(index)"
+                @dragstart="onDragStart($event, index)"
+                draggable="true"
               >
-                <button
-                  class="box-btn"
-                  :class="{ selected: plugin.id !== null }"
-                  @click="handlePluginClick(index)"
-                  @dragstart="onDragStart($event, index)"
-                  draggable="true"
-                >
-                  <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
-                  <OhVueIcon v-else name="co-plus" class="btn-icon" />
-                </button>
-                <div class="line"></div>
-              </div>
+                <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
+                <OhVueIcon v-else name="co-plus" class="btn-icon" />
+              </button>
+              <div class="line"></div>
+            </div>
 
-              <div class="direction-label">
-                <SpeakerIcon class="speaker-icon" />
-              </div>
+            <div class="direction-label">
+              <SpeakerIcon class="speaker-icon" />
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </template>
+    </Carousel>
 
     <div v-if="showPluginSelection" class="plugin-selection-overlay">
       <div class="plugin-selection-content">
@@ -116,16 +83,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount} from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { CoPlus } from 'oh-vue-icons/icons';
 import CableIcon from '@/components/icons/cable-icon.vue';
 import SpeakerIcon from '@/components/icons/speaker-icon.vue';
 import NeuralAmpImg from '@/components/plugins/thumbnails/neuralamp.png';
 import { defineAsyncComponent } from 'vue';
+import NavbarSpinner from '@/components/NavbarSpinner.vue';
+import Carousel from '@/components/ContentCarousel.vue'; // Adjust path as needed
 
-// placeholders for now!
-import { fetchChannels, addChannel, removeChannel  } from '@/stores/tonalflex/functions';
+// Placeholders for now!
+import { fetchChannels, addChannel, removeChannel } from '@/stores/tonalflex/functions';
 
 addIcons(CoPlus);
 
@@ -138,71 +107,6 @@ interface Track {
   name: string;
   plugins: Plugin[];
 }
-
-const isDragging = ref(false)
-const dragStartX = ref(0)
-const dragDelta = ref(0)
-
-const carouselOffset = computed(() => {
-  const dragPercent = (dragDelta.value / window.innerWidth) * 100
-  return currentTrackIndex.value * 100 - dragPercent
-})
-
-// New navbar offset in pixels
-const navbarOffset = computed(() => {
-  const activeLabel = document.querySelector('.navbar-label.active')
-  if (!activeLabel) return 0
-  
-  const labelWidth = activeLabel.getBoundingClientRect().width
-  const viewportWidth = window.innerWidth
-  const trackPosition = currentTrackIndex.value * labelWidth
-  const dragPx = (dragDelta.value / window.innerWidth) * viewportWidth
-  
-  // Center the active label by offsetting half its width from viewport center
-  return (viewportWidth / 2) - trackPosition - (labelWidth / 2) - dragPx
-})
-
-const startDrag = (x: number) => {
-  isDragging.value = true
-  dragStartX.value = x
-}
-
-const onDrag = (x: number) => {
-  if (!isDragging.value) return
-  dragDelta.value = x - dragStartX.value
-}
-
-const endDrag = () => {
-  isDragging.value = false
-  const threshold = window.innerWidth / 4
-  if (dragDelta.value > threshold && currentTrackIndex.value > 0) {
-    currentTrackIndex.value--
-  } else if (dragDelta.value < -threshold && currentTrackIndex.value < tracks.value.length - 1) {
-    currentTrackIndex.value++
-  }
-  dragDelta.value = 0
-}
-
-const startMouseDrag = (e: MouseEvent) => {
-  startDrag(e.clientX)
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseup', endMouseDrag)
-}
-
-const onMouseMove = (e: MouseEvent) => {
-  onDrag(e.clientX)
-}
-
-const endMouseDrag = () => {
-  endDrag()
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', endMouseDrag)
-}
-
-onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', endMouseDrag)
-})
 
 // Reactive state
 const tracks = ref<Track[]>([]);
@@ -230,7 +134,7 @@ const currentPluginChain = computed(() => tracks.value[currentTrackIndex.value]?
 // Fetch channels from Sushi
 const fetchChannelsFromSushi = async () => {
   try {
-    const channels = await fetchChannels(); 
+    const channels = await fetchChannels();
     tracks.value = channels.length > 0
       ? channels
       : [{ name: 'Track 1', plugins: [{ id: null, slotId: 1 }] }];
@@ -251,7 +155,6 @@ const addTrack = async () => {
     });
   } catch (error) {
     console.error('Failed to add track to Sushi:', error);
-    // Fallback: Add locally
     tracks.value.push({
       name: newTrackName,
       plugins: [{ id: null, slotId: 1 }],
@@ -262,14 +165,13 @@ const addTrack = async () => {
 // Remove a track
 const removeTrack = async (index: number) => {
   try {
-    await removeChannel(index); // Your gRPC function
+    await removeChannel(index);
     tracks.value.splice(index, 1);
     if (currentTrackIndex.value >= tracks.value.length) {
       currentTrackIndex.value = tracks.value.length - 1;
     }
   } catch (error) {
     console.error('Failed to remove track from Sushi:', error);
-    // Fallback: Remove locally
     tracks.value.splice(index, 1);
     if (currentTrackIndex.value >= tracks.value.length) {
       currentTrackIndex.value = tracks.value.length - 1;
@@ -351,12 +253,71 @@ onMounted(() => {
 .effect-map-wrapper {
   position: relative;
   width: 100%;
-  height: 100vh;
+  height: 100%;
 }
 
 .navbar-section {
   width: 100%;
   height: 50px;
+  position: relative;
+}
+
+.navbar-section::before,
+.navbar-section::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: #888;
+  border-radius: 50% / 100%;
+}
+
+.navbar-section::before {
+  top: -2px;
+  transform: translateY(-50%);
+}
+
+.navbar-section::after {
+  bottom: -2px;
+  transform: translateY(50%);
+}
+
+.navbar-slots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.navbar-label {
+  flex: 1;
+  text-align: center;
+  line-height: 50px;
+  font-weight: bold;
+  font-size: 18px;
+  color: #666;
+  user-select: none;
+  transition: color 0.2s ease, font-size 0.2s ease;
+  padding: 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navbar-label.active {
+  color: white;
+  font-size: 20px;
+}
+
+.navbar-label.prev,
+.navbar-label.next {
+  color: #888;
+}
+
+.navbar-label.spacer {
+  flex: 1;
 }
 
 .charter-container {
@@ -365,7 +326,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   width: 100%;
-  height: calc(100vh - 72px);
+  height: calc(100% - 50px); /* Account for navbar height */
 }
 
 .grid-container {
@@ -552,67 +513,5 @@ onMounted(() => {
 
 .add-track-btn:hover {
   background-color: #45a049;
-}
-
-.navbar-section {
-  width: 100%;
-  height: 50px;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-}
-
-.navbar-scroll {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-}
-
-.navbar-track {
-  display: flex;
-  height: 100%;
-  width: max-content;
-}
-
-.navbar-label {
-  padding: 0 20px; /* Fixed padding for consistent width */
-  text-align: center;
-  line-height: 50px;
-  font-weight: bold;
-  font-size: 18px;
-  color: #666;
-  user-select: none;
-  transition: color 0.2s ease, font-size 0.2s ease;
-  white-space: nowrap;
-}
-
-.navbar-label.active {
-  color: white;
-  font-size: 20px; /* Slightly larger for emphasis */
-}
-
-.navbar-label.prev,
-.navbar-label.next {
-  color: #888;
-}
-
-.carousel {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  touch-action: pan-x;
-  cursor: grab;
-}
-
-.carousel-track {
-  display: flex;
-  height: 100%;
-  width: max-content;
-}
-
-.carousel-page {
-  flex: 0 0 100%;
-  height: 100%;
 }
 </style>

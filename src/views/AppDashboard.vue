@@ -3,7 +3,7 @@
     <div class="left-panel">
       <LeftPanel @button-clicked="toggleSelectedButton" />
     </div>
-    <div class="nav-bar">
+    <div class="task-bar">
       <NavBar @button-clicked="toggleSelectedButton" />
       <div class="nav-overlay">
         <SaveOverlay v-if="selectedButton === 'save'" />
@@ -69,7 +69,7 @@ const toggleSelectedButton = (button: string) => {
   width: 80px;
 }
 
-.nav-bar{
+.task-bar{
   position:fixed;
   left: 80px;
   width: calc(100vw - 80px);
