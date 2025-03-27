@@ -1,23 +1,27 @@
 <template>
-  <div class="navbar-spinner">
+  <div class="navbar-spinner" ref="containerRef">
     <div
       class="spinner-track"
       :style="{
-        transform: `translateX(-${(modelValue + 1) * 33.3333}vw)`,
-        transition: 'transform 0.3s ease',
+        transform: `translateX(-${(modelValue) * itemWidth}px)`,
+        transition: 'transform 0.3s ease'
       }"
     >
+      <!-- Phantom item -->
+      <div class="phantom-item" :style="{ width: itemWidth + 'px' }" />
+
+      <!-- Real items -->
       <div
-        v-for="(item, index) in paddedItems"
+        v-for="(item, index) in items"
         :key="index"
         class="spinner-item"
+        :style="{ width: itemWidth + 'px' }"
         :class="{
-          current: index === modelValue + 1,
-          prev: index === modelValue,
-          next: index === modelValue + 2,
-          phantom: item === null
+          current: index === modelValue,
+          prev: index === modelValue - 1,
+          next: index === modelValue + 1
         }"
-        @click="handleClick(index - 1)"
+        @click="handleClick(index)"
       >
         {{ item }}
       </div>
@@ -26,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 
 const props = defineProps<{
   items: string[];
@@ -34,17 +38,30 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['update:modelValue']);
+const containerRef = ref<HTMLElement | null>(null);
+const itemWidth = ref(0);
 
-// Create padded list: [null, ...items, null]
-const paddedItems = computed(() => [null, ...props.items, null]);
+const calculateItemWidth = () => {
+  if (containerRef.value) {
+    itemWidth.value = containerRef.value.offsetWidth / 3;
+  }
+};
 
-const handleClick = (realIndex: number) => {
-  if (
-    realIndex >= 0 &&
-    realIndex < props.items.length &&
-    realIndex !== props.modelValue
-  ) {
-    emit('update:modelValue', realIndex);
+onMounted(() => {
+  calculateItemWidth();
+  window.addEventListener('resize', calculateItemWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', calculateItemWidth);
+});
+
+// Optional: Watch if container size might change from parent layout shifting
+watch(containerRef, calculateItemWidth);
+
+const handleClick = (index: number) => {
+  if (index !== props.modelValue) {
+    emit('update:modelValue', index);
   }
 };
 </script>
@@ -55,30 +72,28 @@ const handleClick = (realIndex: number) => {
   height: 50px;
   overflow: hidden;
   position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .spinner-track {
   display: flex;
   height: 100%;
   width: fit-content;
+  transition: transform 0.3s ease;
 }
 
-.spinner-item {
-  width: 33.3333vw;
+.spinner-item,
+.phantom-item {
   text-align: center;
   line-height: 50px;
-  font-size: 16px;
   font-weight: bold;
-  color: #999;
+  font-size: 16px;
+  color: #aaa;
   user-select: none;
+  flex-shrink: 0;
   transition: all 0.3s ease;
   opacity: 0.4;
   transform: scale(0.9);
   pointer-events: none;
-  flex-shrink: 0;
 }
 
 .spinner-item.prev,
@@ -91,14 +106,9 @@ const handleClick = (realIndex: number) => {
 
 .spinner-item.current {
   color: white;
-  opacity: 1;
   font-size: 20px;
   transform: scale(1.1);
+  opacity: 1;
   pointer-events: auto;
-}
-
-.spinner-item.phantom {
-  opacity: 0;
-  pointer-events: none;
 }
 </style>
