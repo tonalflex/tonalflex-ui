@@ -11,8 +11,6 @@ import {
   ProcessorInfo, 
   CvConnection,
   GateConnection,
-  ParameterIdentifier,
-  ProcessorIdentifier,
 } from '@/proto/sushi/sushi_rpc';
 
 const BASE_URL = 'http://sushi-pi.local:8081';
@@ -25,6 +23,8 @@ const cvGateController = new SushiCvGateController(BASE_URL);
 const MAIN_OUTPUT_TRACK_NAME = 'MainOut';
 const SESSION_KEY = 'tonalflex_session';
 const INTERNAL_SESSION_KEY = 'sushi_internal_session';
+
+const BASE_TRACKS = ['MainOut', 'Tuner', 'Looper', 'Metronome'];
 
 export const initializeTonalflexSession = async (): Promise<void> => {
   const tracks = await audioGraph.getAllTracks();
@@ -58,12 +58,50 @@ export const initializeTonalflexSession = async (): Promise<void> => {
 
 export const initializeSushi = async (): Promise<void> => {
   const existing = await audioGraph.getAllTracks();
-  const hasMainOut = existing.some(t => t.name === MAIN_OUTPUT_TRACK_NAME);
+  const existingNames = existing.map(t => t.name);
+  const missing = BASE_TRACKS.filter(name => !existingNames.includes(name));
 
-  if (!hasMainOut) {
-    await audioGraph.createTrack(MAIN_OUTPUT_TRACK_NAME, 2);
-    console.log(`[Init] Created '${MAIN_OUTPUT_TRACK_NAME}' track.`);
+  for (const name of missing) {
+    await audioGraph.createTrack(name, 2);
+    console.log(`[Init] Created missing track: '${name}'`);
   }
+
+  const updated = await audioGraph.getAllTracks();
+  const mainOut = updated.find(t => t.name === MAIN_OUTPUT_TRACK_NAME);
+
+  if (mainOut) {
+    await connectCvAndGateToTrackVolume(mainOut.id);
+  } else {
+    console.warn(`[Init] Could not find '${MAIN_OUTPUT_TRACK_NAME}' for CV/Gate connection`);
+  }
+};
+
+export const createNewPluginChain = async (baseName: string): Promise<string> => {
+  const tracks = await audioGraph.getAllTracks();
+  let name = baseName;
+  let suffix = 2;
+
+  while (tracks.some(t => t.name === name)) {
+    name = `${baseName} (${suffix++})`;
+  }
+
+  await audioGraph.createTrack(name, 2);
+  console.log(`[Chain] Created new plugin chain '${name}'`);
+
+  const mainOut = tracks.find(t => t.name === MAIN_OUTPUT_TRACK_NAME);
+  const newTrack = (await audioGraph.getAllTracks()).find(t => t.name === name);
+
+  if (mainOut && newTrack) {
+    const conn: AudioConnection = {
+      track: { id: newTrack.id },
+      trackChannel: 0,
+      engineChannel: 0,
+    };
+    await audioRouting.connectOutputChannelFromTrack(conn);
+    console.log(`[Chain] Routed '${name}' to '${MAIN_OUTPUT_TRACK_NAME}'`);
+  }
+
+  return name;
 };
 
 export const createTrackAndRouteToMain = async (name: string): Promise<TrackInfo> => {
@@ -111,12 +149,56 @@ export const addPluginToTrackByName = async (trackName: string, pluginId: string
   );
 };
 
+export const addPluginToChain = async (pluginId: string, afterTrackName: string): Promise<string> => {
+  const allTracks = await audioGraph.getAllTracks();
+
+  const afterTrack = allTracks.find(t => t.name === afterTrackName);
+  if (!afterTrack) throw new Error(`Track '${afterTrackName}' not found`);
+
+  // Find next available plugin track name
+  let i = 1;
+  let newTrackName = `Plugin ${i}`;
+  while (allTracks.some(t => t.name === newTrackName)) {
+    i++;
+    newTrackName = `Plugin ${i}`;
+  }
+
+  // Create new track and load plugin
+  await audioGraph.createTrack(newTrackName, 2);
+  await addPluginToTrackByName(newTrackName, pluginId);
+
+  const newTrack = (await audioGraph.getAllTracks()).find(t => t.name === newTrackName);
+  if (!newTrack) throw new Error('Failed to create plugin track');
+
+  // Route afterTrack → newTrack
+  const chainConn: AudioConnection = {
+    track: { id: afterTrack.id },
+    trackChannel: 0,
+    engineChannel: 0,
+  };
+  await audioRouting.connectOutputChannelFromTrack(chainConn);
+
+  // Route newTrack → MainOut
+  const mainOut = allTracks.find(t => t.name === MAIN_OUTPUT_TRACK_NAME);
+  if (mainOut) {
+    const finalConn: AudioConnection = {
+      track: { id: newTrack.id },
+      trackChannel: 0,
+      engineChannel: 0,
+    };
+    await audioRouting.connectOutputChannelFromTrack(finalConn);
+  }
+
+  console.log(`[Chain] Inserted '${pluginId}' after '${afterTrackName}' as '${newTrackName}'`);
+  return newTrackName;
+};
+
 export const connectCvAndGateToTrackVolume = async (trackId: number): Promise<void> => {
   try {
     const processors = await audioGraph.getTrackProcessors(trackId);
 
-    const volumeProc = processors.find(p =>
-      p.processorType?.toLowerCase() === 'volume' || p.name.toLowerCase().includes('volume')
+    const volumeProc = processors.find(
+      (p) => p.name.toLowerCase().includes('volume')
     );
 
     if (!volumeProc) {
@@ -126,15 +208,18 @@ export const connectCvAndGateToTrackVolume = async (trackId: number): Promise<vo
     const processorId = volumeProc.id;
 
     const cvConnection: CvConnection = {
-      parameter: { processor: { id: processorId }, parameterIndex: 0 },
-      cvPortId: 0,
+      parameter: {
+        processorId,
+        parameterId: 0
+      },
+      cvPortId: 0
     };
 
     const gateConnection: GateConnection = {
       processor: { id: processorId },
       gatePortId: 0,
       channel: 0,
-      noteNo: 0,
+      noteNo: 0
     };
 
     await cvGateController.connectCvInputToParameter(cvConnection);
