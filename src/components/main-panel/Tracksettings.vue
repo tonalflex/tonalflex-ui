@@ -1,6 +1,5 @@
 <template>
   <div class="track-settings">
-    <!-- Top bar with Add Icon -->
     <div class="header-bar">
       <span>Tracks</span>
       <button class="add-btn" @click="addTrack">
@@ -8,7 +7,6 @@
       </button>
     </div>
 
-    <!-- List of all tracks including current -->
     <div class="track-list">
       <ul>
         <li
@@ -16,95 +14,101 @@
           :key="index"
           :class="{ 'track-item': true, selected: index === currentIndex }"
         >
-          <template v-if="editingIndex === index">
+          <div class="track-name" @click="selectTrack(index)" v-if="editingIndex !== index">
+            <span class="name">{{ track.name }}</span>
+          </div>
+
+          <div class="track-edit" v-else>
             <input
               v-model="localTracks[index].name"
               class="track-input"
             />
-            <div class="actions">
-                <button class="exit-btn left-line">
-                    <ExitIcon class="icon" @click="exitRename" />
-                </button>
-              <button class="save-btn">
-                <SaveIcon class="icon" @click="saveRename" />
+          </div>
+
+          <div class="actions">
+            <template v-if="editingIndex === index">
+              <button class="exit-btn" @click="exitRename">
+                <ExitIcon class="icon" />
               </button>
-            </div>
-          </template>
-          <template v-else>
-            <span @click="selectTrack(index)">
-              {{ track.name }}
-            </span>
-            <div class="actions">
-              <button class="edit-btn left-line" @click.stop="startEditing(index)">
+              <button class="save-btn" @click="saveRename(index)">
+                <SaveIcon class="icon" />
+              </button>
+            </template>
+            <template v-else>
+              <button class="edit-btn" @click.stop="startEditing(index)">
                 <EditIcon class="icon" />
               </button>
               <button class="remove-btn" @click.stop="removeTrack(index)">
                 <DeleteIcon class="icon" />
               </button>
-            </div>
-          </template>
+            </template>
+          </div>
         </li>
       </ul>
     </div>
   </div>
 </template>
   
-  
 <script setup lang="ts">
-    import { ref, watch } from 'vue';
-    import AddIcon from '@/components/icons/add.vue';
-    import DeleteIcon from '@/components/icons/delete.vue';
-    import EditIcon from '@/components/icons/edit.vue';
-    import SaveIcon from '@/components/icons/save.vue'
-    import ExitIcon from '@/components/icons/exit.vue'
+import { ref, watch } from 'vue';
+import AddIcon from '@/components/icons/add.vue';
+import DeleteIcon from '@/components/icons/delete.vue';
+import EditIcon from '@/components/icons/edit.vue';
+import SaveIcon from '@/components/icons/save.vue';
+import ExitIcon from '@/components/icons/exit.vue';
 
-    const props = defineProps<{
-    tracks: { name: string }[];
-    currentIndex: number;
-    }>();
+const props = defineProps<{
+  tracks: { name: string }[];
+  currentIndex: number;
+}>();
 
-    const emit = defineEmits(['rename-track', 'select-track', 'add-track', 'remove-track']);
-    const localTracks = ref(props.tracks.map(t => ({ ...t })));
-    const editingIndex = ref<number | null>(null);
+const emit = defineEmits([
+  'rename-track',
+  'select-track',
+  'add-track',
+  'remove-track',
+  'close'
+]);
 
-    watch(
-    () => props.tracks,
-    (newTracks) => {
-        localTracks.value = newTracks.map(t => ({ ...t }));
-    },
-    { deep: true }
-    );
+const localTracks = ref(props.tracks.map(t => ({ ...t })));
+const editingIndex = ref<number | null>(null);
 
-    const saveRename = () => {
-    const trimmed = localTracks.value[props.currentIndex].name.trim();
-    if (trimmed) {
-        emit('rename-track', {
-        index: props.currentIndex,
-        newName: trimmed,
-        });
-        editingIndex.value = null;
-    }
-    };
+watch(
+  () => props.tracks,
+  (newTracks) => {
+    localTracks.value = newTracks.map(t => ({ ...t }));
+  },
+  { deep: true }
+);
 
-    const exitRename = () => {
-        editingIndex.value = null;
-    }
+const saveRename = (index: number) => {
+  const trimmed = localTracks.value[index].name.trim();
+  if (trimmed) {
+    emit('rename-track', { index, newName: trimmed });
+    editingIndex.value = null;
+  }
+};
 
-    const selectTrack = (index: number) => {
-    emit('select-track', index);
-    };
+const exitRename = () => {
+  editingIndex.value = null;
+};
 
-    const addTrack = () => {
-    emit('add-track');
-    };
+const selectTrack = (index: number) => {
+  emit('select-track', index);
+  emit('close'); // auto-close on select
+};
 
-    const removeTrack = (index: number) => {
-    emit('remove-track', index);
-    };
+const addTrack = () => {
+  emit('add-track');
+};
 
-    const startEditing = (index: number) => {
-    editingIndex.value = index;
-    };
+const removeTrack = (index: number) => {
+  emit('remove-track', index);
+};
+
+const startEditing = (index: number) => {
+  editingIndex.value = index;
+};
 </script>
   
 <style scoped>
@@ -117,64 +121,14 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: relative;
 }
 
-/* New top header bar */
 .header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 18px;
   font-weight: bold;
-  margin-bottom: 10px;
-}
-
-/* Icon-style button in header */
-.add-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px;
-  transition: transform 0.2s ease;
-}
-
-.add-btn:hover {
-  transform: scale(1.1);
-}
-
-.icon {
-  width: 15px;
-  height: 15px;
-}
-
-.current-track {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: white;
-}
-
-.input-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: white;
-  border: none;
-}
-
-.track-input {
-    max-width: 50%;
-    padding: 8px;
-    font-size: 16px;
-    border: none;
-    background: none;
-    color: white;
-    flex: 1;
-}
-
-.track-input:focus, input:focus{
-    outline: none;
 }
 
 .track-list ul {
@@ -188,63 +142,73 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 0;
+  gap: 10px;
   cursor: pointer;
 }
 
 .track-item:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.track-name {
+  flex: 1;
+  padding: 6px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.track-edit {
+  flex: 1;
+}
+
+.name {
+  user-select: none;
+}
+
+.track-input {
+  width: 100%;
+  padding: 6px;
+  font-size: 16px;
+  background: none;
+  border: none;
+  color: white;
+  border-bottom: 1px solid #555;
+}
+
+.track-input:focus {
+  outline: none;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
 }
 
 .add-btn,
 .remove-btn,
-.exit-btn,
-.save-btn,
-.edit-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
-
-}
-
-.left-line{
-    padding-right: 30px;
-}
-
-.add-btn,
 .edit-btn,
-.exit-btn,
 .save-btn,
-.add-btn{
-    color: limegreen;
+.exit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
 }
 
-.exit-btn,
-.remove-btn {
-  color: red;
+.icon {
+  width: 18px;
+  height: 18px;
 }
 
-.edit-btn {
+.edit-btn,
+.save-btn,
+.add-btn {
   color: limegreen;
 }
 
-/* Slide down animation */
-.dropdown-enter-active,
-.dropdown-leave-active {
-  transition: max-height 0.3s ease, opacity 0.2s ease;
+.remove-btn,
+.exit-btn {
+  color: red;
 }
-
-.dropdown-enter-from,
-.dropdown-leave-to {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.dropdown-enter-to,
-.dropdown-leave-from {
-  max-height: 300px;
-  opacity: 1;
-}
-</style>
-  
+</style>  

@@ -19,7 +19,7 @@
     visible: boolean;
   }>();
   
-  const maxHeight = 'calc(100vh - 100px)';
+  const maxHeight = 'calc(100vh - 100px)'; // Adjust max-height depending on your needs.
   
   const beforeEnter = (el: Element) => {
     const htmlEl = el as HTMLElement;
@@ -56,7 +56,7 @@
     const htmlEl = el as HTMLElement;
     // Force reflow
     void htmlEl.offsetHeight;
-    htmlEl.style.transition = 'height 0.2s ease, opacity 0.3s ease';
+    htmlEl.style.transition = 'height 0.2s ease, opacity 0.3s ease'; // Adjust transition depending on your needs.
     htmlEl.style.height = '0';
     htmlEl.style.opacity = '0';
   };

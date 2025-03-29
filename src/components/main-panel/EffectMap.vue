@@ -2,6 +2,7 @@
 <template>
   <div class="effect-map-wrapper">
     <!-- Synced Navbar Slider showing prev/active/next -->
+    <CloseOnOutsideClick v-model="showTrackSettings">
     <div class="navbar-section" ref="navbarRef">
       <div class="nav-bar">
         <NavbarSpinner
@@ -21,10 +22,12 @@
             @remove-track="removeTrack"
             @rename-track="({ index, newName }) => tracks[index].name = newName"
             @select-track="selectTrack"
+            @close="showTrackSettings = false"
           />
         </div>
       </DropDown>
     </div>
+  </CloseOnOutsideClick>
     <!-- Carousel Component -->
     <Carousel
       :items="tracks"
@@ -97,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { CoPlus } from 'oh-vue-icons/icons';
@@ -109,6 +112,7 @@ import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
 import Carousel from '@/components/modules/ContentCarousel.vue';
 import TrackSettings from '@/components/main-panel/TrackSettings.vue'
 import DropDown from '@/components/modules/DropDown.vue'
+import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue'
 
 // Placeholders for now!
 import { fetchChannels, addChannel, removeChannel } from '@/stores/tonalflex/functions';
@@ -269,33 +273,9 @@ const openTrackSettings = () => {
   }
 }
 
-const dropdownRef = ref<HTMLElement | null>(null);
-const navbarRef = ref<HTMLElement | null>(null);
-
-const emit = defineEmits(['close']);
-
-const handleClickOutside = (event: MouseEvent) => {
-  const dropdown = dropdownRef.value;
-  const navbar = navbarRef.value;
-
-  if (
-    dropdown &&
-    navbar &&
-    !dropdown.contains(event.target as Node) &&
-    !navbar.contains(event.target as Node)
-  ) {
-    emit('close');
-  }
-};
-
 // Lifecycle
 onMounted(() => {
-  document.addEventListener('mousedown', handleClickOutside);
   fetchChannelsFromSushi();
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleClickOutside);
 });
 </script>
 
