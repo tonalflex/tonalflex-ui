@@ -115,7 +115,7 @@ import DropDown from '@/components/modules/DropDown.vue'
 import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue'
 
 // Placeholders for now!
-import { fetchChannels, addChannel, removeChannel } from '@/stores/tonalflex/functions';
+import { } from '@/stores/tonalflex/functions';
 
 addIcons(CoPlus);
 
