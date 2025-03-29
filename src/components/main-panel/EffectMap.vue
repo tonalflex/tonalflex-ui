@@ -2,7 +2,7 @@
 <template>
   <div class="effect-map-wrapper">
     <!-- Synced Navbar Slider showing prev/active/next -->
-    <div class="navbar-section">
+    <div class="navbar-section" ref="navbarRef">
       <div class="nav-bar">
         <NavbarSpinner
           :items="trackNames"
@@ -11,17 +11,19 @@
           @current-click="openTrackSettings"
         />
       </div>
-      <div class="track-settings-section" v-if="showTrackSettings">
-        <TrackSettings
-          v-if="showTrackSettings"
-          :tracks="tracks"
-          :currentIndex="currentTrackIndex"
-          @add-track="addTrack"
-          @remove-track="removeTrack"
-          @rename-track="({ index, newName }) => tracks[index].name = newName"
-          @select-track="selectTrack"
-        />
-      </div>
+
+      <DropDown :visible="showTrackSettings">
+        <div class="track-settings-section" ref="dropdownRef">
+          <TrackSettings
+            :tracks="tracks"
+            :currentIndex="currentTrackIndex"
+            @add-track="addTrack"
+            @remove-track="removeTrack"
+            @rename-track="({ index, newName }) => tracks[index].name = newName"
+            @select-track="selectTrack"
+          />
+        </div>
+      </DropDown>
     </div>
     <!-- Carousel Component -->
     <Carousel
@@ -95,7 +97,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+
 import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { CoPlus } from 'oh-vue-icons/icons';
 import CableIcon from '@/components/icons/cable-icon.vue';
@@ -104,7 +107,8 @@ import NeuralAmpImg from '@/components/plugins/thumbnails/neuralamp.png';
 import { defineAsyncComponent } from 'vue';
 import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
 import Carousel from '@/components/modules/ContentCarousel.vue';
-import TrackSettings from '@/components/main-panel/Tracksettings.vue'
+import TrackSettings from '@/components/main-panel/TrackSettings.vue'
+import DropDown from '@/components/modules/DropDown.vue'
 
 // Placeholders for now!
 import { fetchChannels, addChannel, removeChannel } from '@/stores/tonalflex/functions';
@@ -265,13 +269,33 @@ const openTrackSettings = () => {
   }
 }
 
-const closeTrackSettings = () => {
-  showTrackSettings.value = false;
-}
+const dropdownRef = ref<HTMLElement | null>(null);
+const navbarRef = ref<HTMLElement | null>(null);
+
+const emit = defineEmits(['close']);
+
+const handleClickOutside = (event: MouseEvent) => {
+  const dropdown = dropdownRef.value;
+  const navbar = navbarRef.value;
+
+  if (
+    dropdown &&
+    navbar &&
+    !dropdown.contains(event.target as Node) &&
+    !navbar.contains(event.target as Node)
+  ) {
+    emit('close');
+  }
+};
 
 // Lifecycle
 onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside);
   fetchChannelsFromSushi();
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleClickOutside);
 });
 </script>
 

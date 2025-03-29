@@ -1,59 +1,57 @@
 <template>
-    <transition name="dropdown">
-      <div class="track-settings">
-        <!-- Top bar with Add Icon -->
-        <div class="header-bar">
-          <span>Tracks</span>
-          <button class="add-btn" @click="addTrack">
-            <AddIcon class="icon" />
-          </button>
-        </div>
-  
-        <!-- List of all tracks including current -->
-        <div class="track-list">
-          <ul>
-            <li
-              v-for="(track, index) in localTracks"
-              :key="index"
-              :class="{ 'track-item': true, selected: index === currentIndex }"
-            >
-              <template v-if="editingIndex === index">
-                <input
-                  v-model="localTracks[index].name"
-                  class="track-input"
-                />
-                <div class="actions">
-                    <button class="exit-btn left-line">
-                        <ExitIcon class="icon" @click="exitRename" />
-                    </button>
-                  <button class="save-btn">
-                    <SaveIcon class="icon" @click="saveRename" />
-                  </button>
-                </div>
-              </template>
-              <template v-else>
-                <span @click="selectTrack(index)">
-                  {{ track.name }}
-                </span>
-                <div class="actions">
-                  <button class="edit-btn left-line" @click.stop="startEditing(index)">
-                    <EditIcon class="icon" />
-                  </button>
-                  <button class="remove-btn" @click.stop="removeTrack(index)">
-                    <DeleteIcon class="icon" />
-                  </button>
-                </div>
-              </template>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </transition>
-  </template>
+  <div class="track-settings">
+    <!-- Top bar with Add Icon -->
+    <div class="header-bar">
+      <span>Tracks</span>
+      <button class="add-btn" @click="addTrack">
+        <AddIcon class="icon" />
+      </button>
+    </div>
+
+    <!-- List of all tracks including current -->
+    <div class="track-list">
+      <ul>
+        <li
+          v-for="(track, index) in localTracks"
+          :key="index"
+          :class="{ 'track-item': true, selected: index === currentIndex }"
+        >
+          <template v-if="editingIndex === index">
+            <input
+              v-model="localTracks[index].name"
+              class="track-input"
+            />
+            <div class="actions">
+                <button class="exit-btn left-line">
+                    <ExitIcon class="icon" @click="exitRename" />
+                </button>
+              <button class="save-btn">
+                <SaveIcon class="icon" @click="saveRename" />
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <span @click="selectTrack(index)">
+              {{ track.name }}
+            </span>
+            <div class="actions">
+              <button class="edit-btn left-line" @click.stop="startEditing(index)">
+                <EditIcon class="icon" />
+              </button>
+              <button class="remove-btn" @click.stop="removeTrack(index)">
+                <DeleteIcon class="icon" />
+              </button>
+            </div>
+          </template>
+        </li>
+      </ul>
+    </div>
+  </div>
+</template>
   
   
 <script setup lang="ts">
-    import { computed, ref, watch } from 'vue';
+    import { ref, watch } from 'vue';
     import AddIcon from '@/components/icons/add.vue';
     import DeleteIcon from '@/components/icons/delete.vue';
     import EditIcon from '@/components/icons/edit.vue';
@@ -103,12 +101,6 @@
     const removeTrack = (index: number) => {
     emit('remove-track', index);
     };
-
-    const otherTracks = computed(() =>
-    props.tracks
-        .map((t, i) => ({ ...t, index: i }))
-        .filter((_, i) => i !== props.currentIndex)
-    );
 
     const startEditing = (index: number) => {
     editingIndex.value = index;
