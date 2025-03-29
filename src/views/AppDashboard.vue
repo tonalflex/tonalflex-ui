@@ -4,7 +4,7 @@
       <LeftPanel @button-clicked="toggleSelectedButton" />
     </div>
     <div class="task-bar">
-      <NavBar @button-clicked="toggleSelectedButton" />
+      <Taskbar @button-clicked="toggleSelectedButton" />
       <div class="nav-overlay">
         <SaveOverlay v-if="selectedButton === 'save'" />
         <LoadOverlay v-if="selectedButton === 'load'" />
@@ -33,11 +33,11 @@ import Metronome from '@/components/plugins/Metronome.vue';
 import Looper  from '@/components/plugins/Looper.vue'
 import PluginPanel from '@/components/PluginPanel.vue'
 
-import NavBar from '@/components/nav-bar/NavBar.vue';
-import SaveOverlay from '@/components/nav-bar/save-overlay.vue'
-import LoadOverlay from '@/components/nav-bar/load-overlay.vue'
-import HelpOverlay from '@/components/nav-bar/help-overlay.vue'
-import SettingsOverlay from '@/components/nav-bar/settings-overlay.vue'
+import Taskbar from '@/components/task-bar/TaskBar.vue';
+import SaveOverlay from '@/components/task-bar/save-overlay.vue'
+import LoadOverlay from '@/components/task-bar/load-overlay.vue'
+import HelpOverlay from '@/components/task-bar/help-overlay.vue'
+import SettingsOverlay from '@/components/task-bar/settings-overlay.vue'
 
 const selectedButton = ref<string | null>("effectmap"); // Default view
 const isPluginsEnabled = true;

@@ -3,14 +3,26 @@
   <div class="effect-map-wrapper">
     <!-- Synced Navbar Slider showing prev/active/next -->
     <div class="navbar-section">
-      <NavbarSpinner
-        :items="trackNames"
-        v-model="currentTrackIndex"
-        :emit-on-current-click="true"
-        @current-click="openTrackSettings"
-      />
+      <div class="nav-bar">
+        <NavbarSpinner
+          :items="trackNames"
+          v-model="currentTrackIndex"
+          :emit-on-current-click="true"
+          @current-click="openTrackSettings"
+        />
+      </div>
+      <div class="track-settings-section" v-if="showTrackSettings">
+        <TrackSettings
+          v-if="showTrackSettings"
+          :tracks="tracks"
+          :currentIndex="currentTrackIndex"
+          @add-track="addTrack"
+          @remove-track="removeTrack"
+          @rename-track="({ index, newName }) => tracks[index].name = newName"
+          @select-track="selectTrack"
+        />
+      </div>
     </div>
-
     <!-- Carousel Component -->
     <Carousel
       :items="tracks"
@@ -79,12 +91,6 @@
         <component :is="getPluginComponent(selectedPluginId)" />
       </div>
     </div>
-
-    <button class="add-track-btn" @click="addTrack">Add New Track</button>
-  </div>
-  <div class="trackSettings" v-if="showTrackSettings">
-    <h2>Track Settings</h2>
-    <button @click="closeTrackSettings">close</button>
   </div>
 </template>
 
@@ -96,8 +102,9 @@ import CableIcon from '@/components/icons/cable-icon.vue';
 import SpeakerIcon from '@/components/icons/speaker-icon.vue';
 import NeuralAmpImg from '@/components/plugins/thumbnails/neuralamp.png';
 import { defineAsyncComponent } from 'vue';
-import NavbarSpinner from '@/components/NavbarSpinner.vue';
-import Carousel from '@/components/ContentCarousel.vue'; // Adjust path as needed
+import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
+import Carousel from '@/components/modules/ContentCarousel.vue';
+import TrackSettings from '@/components/main-panel/Tracksettings.vue'
 
 // Placeholders for now!
 import { fetchChannels, addChannel, removeChannel } from '@/stores/tonalflex/functions';
@@ -251,8 +258,11 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
 };
 
 const openTrackSettings = () => {
-  console.log("parent current click");
-  showTrackSettings.value = true;
+  if(showTrackSettings.value === false) {
+    showTrackSettings.value = true;
+  } else {
+    showTrackSettings.value = false;
+  }
 }
 
 const closeTrackSettings = () => {
@@ -274,7 +284,6 @@ onMounted(() => {
 
 .navbar-section {
   width: 100%;
-  height: 50px;
   position: relative;
 }
 
@@ -282,8 +291,8 @@ onMounted(() => {
 .navbar-section::after {
   content: '';
   position: absolute;
-  left: 10%;
-  right: 10%;
+  left: 2%;
+  right: 2%;
   height: 2px;
   background: #888;
   border-radius: 50% / 100%;
@@ -299,41 +308,20 @@ onMounted(() => {
   transform: translateY(50%);
 }
 
-.navbar-slots {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.nav-bar{
   width: 100%;
-  height: 100%;
+  height: 50px;
 }
 
-.navbar-label {
-  flex: 1;
-  text-align: center;
-  line-height: 50px;
-  font-weight: bold;
-  font-size: 18px;
-  color: #666;
-  user-select: none;
-  transition: color 0.2s ease, font-size 0.2s ease;
-  padding: 0 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.navbar-label.active {
+.track-settings-section{
+  width: 100%;
   color: white;
-  font-size: 20px;
-}
-
-.navbar-label.prev,
-.navbar-label.next {
-  color: #888;
-}
-
-.navbar-label.spacer {
-  flex: 1;
+  z-index: 5;
+  padding: 10px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .charter-container {
@@ -531,18 +519,4 @@ onMounted(() => {
   background-color: #45a049;
 }
 
-.trackSettings{
-  position: fixed;
-  top: 72px;
-  left: 80px;
-  width: calc(100vw - 80px);
-  height: calc(100vh - 72px);
-  background: rgba(0, 0, 255, 0.9);
-  color: white;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="nav-bar">
+  <div class="task-bar">
     <div class="divider-group"></div>
     <div class="right-group">
       <button
@@ -64,7 +64,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.nav-bar {
+.task-bar {
   display: flex;
   justify-content: space-between; /* Pushes left-group to left, right-group to right */
   align-items: center;
@@ -117,7 +117,7 @@ export default defineComponent({
 
 .btn-icon{
   color:rgba(255, 255, 255, 0.6);
-  width:35px;
-  height: 35px;
+  width:30px;
+  height: 30px;
 }
 </style>
