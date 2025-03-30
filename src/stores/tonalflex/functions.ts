@@ -1,8 +1,10 @@
 // src/stores/tonalflex/functions.ts
+import { ref } from 'vue';
 import SushiAudioGraphController from '@/stores/sushi/audioGraphController';
 import SushiAudioRoutingController from '@/stores/sushi/audioRoutingController';
 import SushiSessionController from '@/stores/sushi/sessionController';
 import SushiCvGateController from '@/stores/sushi/cvGateController';
+import SushiNotificationController from '@/stores/sushi/notificationController';
 import { pluginList } from '@/components/plugins/pluginIndex';
 import { 
   PluginType_Type, 
@@ -11,6 +13,8 @@ import {
   ProcessorInfo, 
   CvConnection,
   GateConnection,
+  ParameterNotificationBlocklist,
+  ParameterUpdate,
 } from '@/proto/sushi/sushi_rpc';
 
 const BASE_URL = 'http://sushi-pi.local:8081';
@@ -19,12 +23,27 @@ const audioGraph = new SushiAudioGraphController(BASE_URL);
 const audioRouting = new SushiAudioRoutingController(BASE_URL);
 const sessionController = new SushiSessionController(BASE_URL);
 const cvGateController = new SushiCvGateController(BASE_URL);
+const notificationController = new SushiNotificationController(BASE_URL);
 
 const MAIN_OUTPUT_TRACK_NAME = 'MainOut';
 const SESSION_KEY = 'tonalflex_session';
 const INTERNAL_SESSION_KEY = 'sushi_internal_session';
 
 const BASE_TRACKS = ['MainOut', 'Tuner', 'Looper', 'Metronome'];
+
+export const cvInputLevel = ref(0);
+
+notificationController.subscribeToParameterUpdates(
+  ParameterNotificationBlocklist.create(),
+  (update: ParameterUpdate) => {
+    if (update?.parameter?.parameterId === 0 && typeof update.normalizedValue === 'number') {
+      cvInputLevel.value = update.normalizedValue;
+    }
+  },
+  (err) => {
+    console.warn('[CV Monitor] Subscription error:', err);
+  }
+);
 
 export const initializeTonalflexSession = async (): Promise<void> => {
   const tracks = await audioGraph.getAllTracks();
@@ -102,6 +121,57 @@ export const createNewPluginChain = async (baseName: string): Promise<string> =>
   }
 
   return name;
+};
+
+export const removeChannelFromPluginChain = async (trackName: string): Promise<void> => {
+  try {
+    const tracks = await audioGraph.getAllTracks();
+    const target = tracks.find(t => t.name === trackName);
+
+    if (!target) {
+      console.warn(`[Remove] Track '${trackName}' not found.`);
+      return;
+    }
+
+    // Step 1: Disconnect all audio routing connections
+    await audioRouting.disconnectAllInputsFromTrack(target.id);
+    await audioRouting.disconnectAllOutputsFromTrack(target.id);
+
+    // Step 2: Remove all processors from the track
+    const processors = await audioGraph.getTrackProcessors(target.id);
+    for (const p of processors) {
+      await audioGraph.deleteProcessorFromTrack({
+        processor: { id: p.id },
+        track: { id: target.id }
+      });
+    }
+
+    // Step 3: Delete the track
+    await audioGraph.deleteTrack(target.id);
+    console.log(`[Remove] Deleted track '${trackName}' and cleaned up connections.`);
+
+    // Step 4: Reconnect previous/next chain segments
+    const allTracks = await audioGraph.getAllTracks();
+    const chainTracks = allTracks.filter(t => t.name.startsWith('Plugin'))
+                                  .sort((a, b) => a.id - b.id);
+
+    const index = chainTracks.findIndex(t => t.id === target.id);
+    const before = chainTracks[index - 1];
+    const after = chainTracks[index + 1];
+
+    if (before && after) {
+      // Connect output of 'before' to input of 'after'
+      await audioRouting.connectOutputChannelFromTrack({
+        track: { id: before.id },
+        trackChannel: 0,
+        engineChannel: 0
+      });
+
+      console.log(`[Chain] Reconnected '${before.name}' to '${after.name}'`);
+    }
+  } catch (error) {
+    console.error(`[Remove] Failed to remove track '${trackName}':`, error);
+  }
 };
 
 export const createTrackAndRouteToMain = async (name: string): Promise<TrackInfo> => {

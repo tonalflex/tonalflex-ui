@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
+// import { RouterView } from 'vue-router';
+import DashBoard from '@/views/AppDashboard.vue'
 </script>
 
 <template>
   <div id="app">
-    <router-view />
+    <DashBoard />
   </div>
 </template>
 

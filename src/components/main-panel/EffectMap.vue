@@ -106,16 +106,22 @@ import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { CoPlus } from 'oh-vue-icons/icons';
 import CableIcon from '@/components/icons/cable-icon.vue';
 import SpeakerIcon from '@/components/icons/speaker-icon.vue';
-import NeuralAmpImg from '@/components/plugins/thumbnails/neuralamp.png';
 import { defineAsyncComponent } from 'vue';
 import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
 import Carousel from '@/components/modules/ContentCarousel.vue';
-import TrackSettings from '@/components/main-panel/TrackSettings.vue'
-import DropDown from '@/components/modules/DropDown.vue'
-import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue'
+import TrackSettings from '@/components/main-panel/TrackSettings.vue';
+import DropDown from '@/components/modules/DropDown.vue';
+import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue';
 
-// Placeholders for now!
-import { } from '@/stores/tonalflex/functions';
+import {
+  initializeTonalflexSession,
+  saveSessionSnapshot,
+  createTrackAndRouteToMain,
+  removeChannel,
+  addPluginToTrackByName
+} from '@/stores/tonalflex/functions';
+
+import { pluginList } from '@/components/plugins/pluginIndex';
 
 addIcons(CoPlus);
 
@@ -129,19 +135,8 @@ interface Track {
   plugins: Plugin[];
 }
 
-// Reactive state
 const tracks = ref<Track[]>([]);
 const currentTrackIndex = ref(0);
-const availableEffects = ref([
-  { id: 'reverb', name: 'Reverb', image: '/images/reverb.png' },
-  { id: 'delay', name: 'Delay', image: '/images/delay.png' },
-  { id: 'distortion', name: 'Distortion', image: '/images/distortion.png' },
-  { id: 'chorus', name: 'Chorus', image: '/images/chorus.png' },
-  { id: 'neuralamp', name: 'Neural Amp', image: NeuralAmpImg },
-]);
-const pluginComponents = {
-  neuralamp: defineAsyncComponent(() => import('@/components/plugins/NeuralAmp.vue')),
-};
 const showPluginSelection = ref(false);
 const showPlugin = ref(false);
 const currentIndex = ref<number | null>(null);
@@ -149,73 +144,55 @@ const dragIndex = ref<number | null>(null);
 const selectedPluginId = ref<string | null>(null);
 const showTrackSettings = ref(false);
 
-// Computed properties
 const trackNames = computed(() => tracks.value.map((track) => track.name));
 const currentPluginChain = computed(() => tracks.value[currentTrackIndex.value]?.plugins || []);
+const availableEffects = ref(pluginList);
 
-// Fetch channels from Sushi
-const fetchChannelsFromSushi = async () => {
-  try {
-    const channels = await fetchChannels();
-    tracks.value = channels.length > 0
-      ? channels
-      : [{ name: 'Track 1', plugins: [{ id: null, slotId: 1 }] }];
-  } catch (error) {
-    console.error('Failed to fetch channels from Sushi:', error);
-    tracks.value = [{ name: 'Track 1', plugins: [{ id: null, slotId: 1 }] }];
+const fetchInitialState = async () => {
+  await initializeTonalflexSession();
+
+  const saved = localStorage.getItem('tonalflex_session');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    if (parsed?.tracks) {
+      tracks.value = parsed.tracks;
+    }
   }
 };
 
-// Add a new track
 const addTrack = async () => {
   const newTrackName = `Track ${tracks.value.length + 1}`;
-  try {
-    await addChannel(newTrackName);
-    tracks.value.push({
-      name: newTrackName,
-      plugins: [{ id: null, slotId: 1 }],
-    });
-  } catch (error) {
-    console.error('Failed to add track to Sushi:', error);
-    tracks.value.push({
-      name: newTrackName,
-      plugins: [{ id: null, slotId: 1 }],
-    });
-  }
+  await createTrackAndRouteToMain(newTrackName);
+  tracks.value.push({
+    name: newTrackName,
+    plugins: [{ id: null, slotId: 1 }],
+  });
+  await saveSessionSnapshot();
 };
 
-// Remove a track
 const removeTrack = async (index: number) => {
-  try {
-    await removeChannel(index);
-    tracks.value.splice(index, 1);
-    if (currentTrackIndex.value >= tracks.value.length) {
-      currentTrackIndex.value = tracks.value.length - 1;
-    }
-  } catch (error) {
-    console.error('Failed to remove track from Sushi:', error);
-    tracks.value.splice(index, 1);
-    if (currentTrackIndex.value >= tracks.value.length) {
-      currentTrackIndex.value = tracks.value.length - 1;
-    }
+  await removeChannel(index);
+  tracks.value.splice(index, 1);
+  if (currentTrackIndex.value >= tracks.value.length) {
+    currentTrackIndex.value = tracks.value.length - 1;
   }
+  await saveSessionSnapshot();
 };
 
-// Select a track
 const selectTrack = (index: number) => {
   currentTrackIndex.value = index;
 };
 
-// Plugin handling
 const getPluginImage = (pluginId: string | null) => {
-  if (!pluginId) return '';
-  const effect = availableEffects.value.find((e) => e.id === pluginId);
+  const effect = pluginList.find((e) => e.id === pluginId);
   return effect ? effect.image : '';
 };
 
 const getPluginComponent = (pluginId: string | null) => {
-  if (!pluginId || !(pluginId in pluginComponents)) return null;
-  return pluginComponents[pluginId as keyof typeof pluginComponents];
+  // Extend if more plugin UIs are added
+  return pluginId === 'neuralamp'
+    ? defineAsyncComponent(() => import('@/components/plugins/NeuralAmp.vue'))
+    : null;
 };
 
 const handlePluginClick = (index: number) => {
@@ -228,15 +205,16 @@ const handlePluginClick = (index: number) => {
   }
 };
 
-const selectEffect = (effectId: string) => {
+const selectEffect = async (effectId: string) => {
   if (currentIndex.value !== null) {
-    currentPluginChain.value[currentIndex.value].id = effectId;
-    if (currentIndex.value === currentPluginChain.value.length - 1) {
-      currentPluginChain.value.push({
-        id: null,
-        slotId: currentPluginChain.value.length + 1,
-      });
+    const track = tracks.value[currentTrackIndex.value];
+    track.plugins[currentIndex.value].id = effectId;
+    await addPluginToTrackByName(track.name, effectId);
+
+    if (currentIndex.value === track.plugins.length - 1) {
+      track.plugins.push({ id: null, slotId: track.plugins.length + 1 });
     }
+    await saveSessionSnapshot();
   }
   showPluginSelection.value = false;
 };
@@ -263,19 +241,15 @@ const onDrop = (event: DragEvent, targetIndex: number) => {
   currentPluginChain.value.splice(dragIndex.value, 1);
   currentPluginChain.value.splice(targetIndex, 0, draggedPlugin);
   dragIndex.value = null;
+  saveSessionSnapshot();
 };
 
 const openTrackSettings = () => {
-  if(showTrackSettings.value === false) {
-    showTrackSettings.value = true;
-  } else {
-    showTrackSettings.value = false;
-  }
-}
+  showTrackSettings.value = !showTrackSettings.value;
+};
 
-// Lifecycle
 onMounted(() => {
-  fetchChannelsFromSushi();
+  fetchInitialState();
 });
 </script>
 

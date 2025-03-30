@@ -38,7 +38,9 @@
         min="1"
         orient="vertical"
         max="100"
-        value="75"
+        :style="{
+          background: getGradientFill(cvInputLevel)
+        }"
         v-model="volume"
         class="slider"
         @touchstart="lockScroll"
@@ -53,7 +55,9 @@
         min="1"
         orient="vertical"
         max="100"
-        value="75"
+        :style="{
+          background: getGradientFill(cvInputLevel)
+        }"
         v-model="masterVolume"
         class="slider"
         @touchstart="lockScroll"
@@ -65,85 +69,83 @@
 
 </template>
 
-<script lang="ts">
-import { defineComponent, ref } from "vue";
-import { OhVueIcon, addIcons } from "oh-vue-icons";
-import { BiHeadphones } from "oh-vue-icons/icons";
-import { BiVolumeUp } from "oh-vue-icons/icons";
-import { FaUserAlt } from "oh-vue-icons/icons";
-import { GiMetronome } from "oh-vue-icons/icons";
-import { OiRepoForked } from "oh-vue-icons/icons";
-import TunerIcon from '@/components/icons/tuner.vue'
-import AmpIcon from '@/components/icons/amplifier-icon.vue'
-import { CoLoop } from "oh-vue-icons/icons";
-import SystemController from "@/stores/sushi/systemController";
+<script setup lang="ts">
+import { ref } from 'vue';
+import { OhVueIcon, addIcons } from 'oh-vue-icons';
+import { BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop } from 'oh-vue-icons/icons';
+import TunerIcon from '@/components/icons/tuner.vue';
+import AmpIcon from '@/components/icons/amplifier-icon.vue';
+import SystemController from '@/stores/sushi/systemController';
+// import { cvInputLevel } from '@/stores/tonalflex/functions';
 
-// Register the icon
-addIcons(BiHeadphones);
-addIcons(BiVolumeUp);
-addIcons(FaUserAlt);
-addIcons(GiMetronome);
-addIcons(OiRepoForked);
-addIcons(CoLoop)
+// Register icons
+addIcons(BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop);
 
-export default defineComponent({
-  name: "LeftPanel",
-  props: {
-    selectedButton: String
-  },
-  setup(_, { emit }) {
-    const volume = ref(75);
-    const masterVolume = ref(75);
+// Props
+defineProps<{
+  selectedButton?: string;
+}>();
 
-    const selectButton = (button: string) => {
-      emit("button-clicked", button); // Emit event with button name
-    };
+// Emits
+const emit = defineEmits<{
+  (e: 'button-clicked', button: string): void;
+}>();
 
-    // Prevents scrolling while allowing touch input
-    const lockScroll = (event: TouchEvent) => {
-      if (event.cancelable) {
-        event.stopPropagation(); // Stops event bubbling
-        document.body.style.overflow = "hidden"; // Prevents page scrolling
-      }
-    };
+// State
+const volume = ref(50);
+const masterVolume = ref(50);
 
-    // Re-enable scrolling when the touch ends
-    const unlockScroll = () => {
-      document.body.style.overflow = ""; // Restores scrolling
-    };
+// Events
+const selectButton = (button: string) => {
+  emit('button-clicked', button);
+};
 
-    return { volume, masterVolume, selectButton, lockScroll, unlockScroll };
-  },
-  components: {
-    OhVueIcon,
-    TunerIcon,
-    AmpIcon,
-  },
-  methods: {
-    // for debugging
-    async fetchSystemInfo() {
-      const baseUrl = "http://192.168.132.108:8081/sushi";
-      const systemController = new SystemController(baseUrl);
+// Prevent scrolling on touch
+const lockScroll = (event: TouchEvent) => {
+  if (event.cancelable) {
+    event.stopPropagation();
+    document.body.style.overflow = 'hidden';
+  }
+};
 
-      try {
-        console.log("Fetching Sushi System Info...");
-        const version = await systemController.getSushiVersion();
-        console.log("Sushi Version:", version);
+const unlockScroll = () => {
+  document.body.style.overflow = '';
+};
 
-        const buildInfo = await systemController.getBuildInfo();
-        console.log("Sushi Build Info:", buildInfo);
+const cvInputLevel = ref(0.9);
 
-        const inputChannels = await systemController.getInputAudioChannelCount();
-        console.log("Input Audio Channels:", inputChannels);
+const getGradientFill = (level: number): string => {
+  const clampedLevel = Math.max(0, Math.min(1, level)); // Ensure 0-1 range
+  const levelPercent = clampedLevel * 100;
 
-        const outputChannels = await systemController.getOutputAudioChannelCount();
-        console.log("Output Audio Channels:", outputChannels);
-      } catch (err) {
-        console.error("Failed to fetch system info:", err);
-      }
-    },
-  },
-});
+  return `linear-gradient(to top, 
+    #00FF00 0%,          /* Pure green at bottom */
+    #FF0000 100%         /* Pure red at top */
+  )`;
+};
+
+// Debug method (optional for dev tools/testing)
+const fetchSystemInfo = async () => {
+  const baseUrl = 'http://192.168.132.108:8081/sushi';
+  const systemController = new SystemController(baseUrl);
+
+  try {
+    console.log('Fetching Sushi System Info...');
+    const version = await systemController.getSushiVersion();
+    console.log('Sushi Version:', version);
+
+    const buildInfo = await systemController.getBuildInfo();
+    console.log('Sushi Build Info:', buildInfo);
+
+    const inputChannels = await systemController.getInputAudioChannelCount();
+    console.log('Input Audio Channels:', inputChannels);
+
+    const outputChannels = await systemController.getOutputAudioChannelCount();
+    console.log('Output Audio Channels:', outputChannels);
+  } catch (err) {
+    console.error('Failed to fetch system info:', err);
+  }
+};
 </script>
 
 <style scoped>
@@ -220,10 +222,12 @@ export default defineComponent({
   writing-mode: vertical-lr;
   direction: rtl;
   width:10px;
-  background-color:rgb(36, 36, 36);
-  border: 1px solid rgba(142, 142, 142, 0.3);
+  border-left: 1px solid rgba(142, 142, 142, 0.3);
+  border-right: 1px solid rgba(142, 142, 142, 0.3);
+  border-bottom: 1px solid rgba(142, 142, 142, 0.3);
   height: 95%;
   justify-self: center;
+  transition: background 0.1s ease;
 }
 
 .slider::-webkit-slider-thumb {
