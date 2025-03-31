@@ -25,20 +25,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { useTonalFlexSession } from '@/composables/useTonalFlexSession';
 import LeftPanel from '@/components/LeftPanel.vue';
 import EffectMap from '@/components/main-panel/EffectMap.vue';
 import Tuner from '@/components/plugins/Tuner.vue';
 import Metronome from '@/components/plugins/Metronome.vue';
 import Looper  from '@/components/plugins/Looper.vue'
 import PluginPanel from '@/components/PluginPanel.vue'
-
 import Taskbar from '@/components/task-bar/TaskBar.vue';
 import SaveOverlay from '@/components/task-bar/save-overlay.vue'
 import LoadOverlay from '@/components/task-bar/load-overlay.vue'
 import HelpOverlay from '@/components/task-bar/help-overlay.vue'
 import SettingsOverlay from '@/components/task-bar/settings-overlay.vue'
 
+const { initialize } = useTonalFlexSession();
 const selectedButton = ref<string | null>("effectmap"); // Default view
 const isPluginsEnabled = true;
 const selectedPlugins = ref<{ id: number; name: string }[]>([]);
@@ -50,6 +51,10 @@ const updatePlugins = (plugins: { id: number; name: string }[]) => {
 const toggleSelectedButton = (button: string) => {
   selectedButton.value = selectedButton.value === button ? "effectmap" : button;
 };
+
+onMounted(() => {
+  initialize();
+});
 
 </script>
 

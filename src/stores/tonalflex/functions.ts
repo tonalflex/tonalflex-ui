@@ -133,11 +133,9 @@ export const removeChannelFromPluginChain = async (trackName: string): Promise<v
       return;
     }
 
-    // Step 1: Disconnect all audio routing connections
     await audioRouting.disconnectAllInputsFromTrack(target.id);
     await audioRouting.disconnectAllOutputsFromTrack(target.id);
 
-    // Step 2: Remove all processors from the track
     const processors = await audioGraph.getTrackProcessors(target.id);
     for (const p of processors) {
       await audioGraph.deleteProcessorFromTrack({
@@ -146,11 +144,9 @@ export const removeChannelFromPluginChain = async (trackName: string): Promise<v
       });
     }
 
-    // Step 3: Delete the track
     await audioGraph.deleteTrack(target.id);
     console.log(`[Remove] Deleted track '${trackName}' and cleaned up connections.`);
 
-    // Step 4: Reconnect previous/next chain segments
     const allTracks = await audioGraph.getAllTracks();
     const chainTracks = allTracks.filter(t => t.name.startsWith('Plugin'))
                                   .sort((a, b) => a.id - b.id);
@@ -160,13 +156,11 @@ export const removeChannelFromPluginChain = async (trackName: string): Promise<v
     const after = chainTracks[index + 1];
 
     if (before && after) {
-      // Connect output of 'before' to input of 'after'
       await audioRouting.connectOutputChannelFromTrack({
         track: { id: before.id },
         trackChannel: 0,
         engineChannel: 0
       });
-
       console.log(`[Chain] Reconnected '${before.name}' to '${after.name}'`);
     }
   } catch (error) {

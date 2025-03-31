@@ -117,7 +117,6 @@ import {
   initializeTonalflexSession,
   saveSessionSnapshot,
   createTrackAndRouteToMain,
-  removeChannel,
   addPluginToTrackByName
 } from '@/stores/tonalflex/functions';
 
@@ -170,14 +169,6 @@ const addTrack = async () => {
   await saveSessionSnapshot();
 };
 
-const removeTrack = async (index: number) => {
-  await removeChannel(index);
-  tracks.value.splice(index, 1);
-  if (currentTrackIndex.value >= tracks.value.length) {
-    currentTrackIndex.value = tracks.value.length - 1;
-  }
-  await saveSessionSnapshot();
-};
 
 const selectTrack = (index: number) => {
   currentTrackIndex.value = index;
