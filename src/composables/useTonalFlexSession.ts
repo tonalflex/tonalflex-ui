@@ -7,7 +7,7 @@ import {
     addPluginToTrackByName,
     addPluginToChain,
     connectCvAndGateToTrackVolume,
-  } from '@/stores/tonalflex/functions';
+  } from '@/backend/tonalflexBackend';
   
   export const useTonalFlexSession = () => {
     /**

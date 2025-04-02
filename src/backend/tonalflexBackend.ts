@@ -1,10 +1,12 @@
 // src/stores/tonalflex/functions.ts
 import { ref } from 'vue';
-import SushiAudioGraphController from '@/stores/sushi/audioGraphController';
-import SushiAudioRoutingController from '@/stores/sushi/audioRoutingController';
-import SushiSessionController from '@/stores/sushi/sessionController';
-import SushiCvGateController from '@/stores/sushi/cvGateController';
-import SushiNotificationController from '@/stores/sushi/notificationController';
+import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
+import SushiAudioRoutingController from '@/backend/sushi/audioRoutingController';
+import SushiSessionController from '@/backend/sushi/sessionController';
+import SushiCvGateController from '@/backend/sushi/cvGateController';
+import SushiNotificationController from '@/backend/sushi/notificationController';
+import SushiParameterController from '@/backend/sushi/parameterController';
+import ButlerController from '@/backend/butler/butler-functions';
 import { pluginList } from '@/components/plugins/pluginIndex';
 import { 
   PluginType_Type, 
@@ -17,13 +19,15 @@ import {
   ParameterUpdate,
 } from '@/proto/sushi/sushi_rpc';
 
-const BASE_URL = 'http://sushi-pi.local:8081';
+const BASE_URL = 'http://192.168.132.108:8081';
 
-const audioGraph = new SushiAudioGraphController(BASE_URL);
-const audioRouting = new SushiAudioRoutingController(BASE_URL);
-const sessionController = new SushiSessionController(BASE_URL);
-const cvGateController = new SushiCvGateController(BASE_URL);
-const notificationController = new SushiNotificationController(BASE_URL);
+const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
+const audioRouting = new SushiAudioRoutingController(BASE_URL + "/sushi");
+const sessionController = new SushiSessionController(BASE_URL + "/sushi");
+const cvGateController = new SushiCvGateController(BASE_URL + "/sushi");
+const notificationController = new SushiNotificationController(BASE_URL + "/sushi");
+const parameterController = new SushiParameterController(BASE_URL + "/sushi");
+const butler = new ButlerController(BASE_URL + "/butler");
 
 const MAIN_OUTPUT_TRACK_NAME = 'MainOut';
 const SESSION_KEY = 'tonalflex_session';
@@ -45,11 +49,74 @@ notificationController.subscribeToParameterUpdates(
   }
 );
 
-export const initializeTonalflexSession = async (): Promise<void> => {
-  const tracks = await audioGraph.getAllTracks();
+export const getPluginParameters = async (processorId: number): Promise<Record<string, number>> => {
+  const result = await parameterController.getProcessorParameters(processorId);
+  const paramValues: Record<string, number> = {};
 
-  if (tracks.length === 0) {
-    console.log('[Init] No existing tracks — cold start');
+  for (const param of result.parameters) {
+    const value = await parameterController.getParameterValue({
+      processorId: processorId,
+      parameterId: param.id
+    });
+    paramValues[param.name || `param${param.id}`] = value;
+  }
+
+  return paramValues;
+};
+
+export const setPluginParameters = async (processorId: number, params: Record<string, number>): Promise<void> => {
+  for (const [key, value] of Object.entries(params)) {
+    const paramId = isNaN(Number(key)) ? undefined : Number(key.replace('param', ''));
+    if (paramId !== undefined) {
+      await parameterController.setParameterValue(processorId, paramId, value);
+    }
+  }
+};
+
+export const saveNamedSession = async (name: string, json: string): Promise<void> => {
+  await butler.saveSession(name, json);
+};
+
+export const loadNamedSession = async (name: string): Promise<string | null> => {
+  const response = await butler.loadSession(name);
+  return response.found ? response.jsonData : null;
+};
+
+export const listSavedSessions = async (): Promise<string[]> => {
+  const response = await butler.listSessions();
+  return response.sessionNames;
+};
+
+export const deleteSavedSession = async (name: string): Promise<void> => {
+  await butler.deleteSession(name);
+};
+
+const isFrontendSessionSameAsSushi = async (frontend: FrontendSessionData): Promise<boolean> => {
+  const sushiTracks = await audioGraph.getAllTracks();
+
+  if (frontend.tracks.length !== sushiTracks.length) return false;
+
+  for (const t of frontend.tracks) {
+    const sushiTrack = sushiTracks.find(s => s.name === t.name);
+    if (!sushiTrack) return false;
+
+    const sushiProcessors = await audioGraph.getTrackProcessors(sushiTrack.id);
+    const sushiPluginIds = sushiProcessors.map(p => p.name).sort();
+    const frontendPluginIds = t.plugins.map(p => p.id).sort();
+
+    if (JSON.stringify(sushiPluginIds) !== JSON.stringify(frontendPluginIds)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+export const initializeTonalflexSession = async (): Promise<void> => {
+  const sushiTracks = await audioGraph.getAllTracks();
+
+  if (sushiTracks.length === 0) {
+    console.log('[Init] No existing Sushi tracks — cold start');
     await initializeSushi();
     await saveSessionSnapshot();
     return;
@@ -57,21 +124,20 @@ export const initializeTonalflexSession = async (): Promise<void> => {
 
   const savedUI = loadFrontendSession();
   if (savedUI) {
-    console.log('[Init] Restoring frontend state...');
-    await restoreFrontendSession(savedUI);
-  }
+    const matches = await isFrontendSessionSameAsSushi(savedUI);
 
-  try {
-    const sushiSavedRaw = localStorage.getItem(INTERNAL_SESSION_KEY);
-    if (sushiSavedRaw) {
-      const sushiSaved = JSON.parse(sushiSavedRaw);
-      if (sushiSaved.tracks) {
-        console.log('[Init] Restoring internal Sushi graph...');
-        await sessionController.restoreSession(sushiSaved);
-      }
+    if (matches) {
+      console.log('[Init] Sushi matches local session — restoring frontend UI...');
+      await restoreFrontendSession(savedUI);
+    } else {
+      console.warn('[Init] Sushi state does NOT match local — clearing autosave.');
+      localStorage.removeItem(SESSION_KEY);
+      await initializeSushi();
+      await saveSessionSnapshot();
     }
-  } catch {
-    console.warn('[Init] No valid Sushi session found or failed to restore');
+  } else {
+    console.log('[Init] No local frontend session — saving current graph snapshot');
+    await saveSessionSnapshot();
   }
 };
 
@@ -120,6 +186,7 @@ export const createNewPluginChain = async (baseName: string): Promise<string> =>
     console.log(`[Chain] Routed '${name}' to '${MAIN_OUTPUT_TRACK_NAME}'`);
   }
 
+  await saveSessionSnapshot();
   return name;
 };
 
@@ -163,6 +230,8 @@ export const removeChannelFromPluginChain = async (trackName: string): Promise<v
       });
       console.log(`[Chain] Reconnected '${before.name}' to '${after.name}'`);
     }
+
+    await saveSessionSnapshot();
   } catch (error) {
     console.error(`[Remove] Failed to remove track '${trackName}':`, error);
   }
@@ -211,6 +280,8 @@ export const addPluginToTrackByName = async (trackName: string, pluginId: string
     plugin.uid,
     plugin.path
   );
+
+  await saveSessionSnapshot();
 };
 
 export const addPluginToChain = async (pluginId: string, afterTrackName: string): Promise<string> => {
@@ -348,3 +419,5 @@ export const restoreFrontendSession = async (data: FrontendSessionData): Promise
     }
   }
 };
+
+export { audioGraph, audioRouting, MAIN_OUTPUT_TRACK_NAME, BASE_TRACKS };

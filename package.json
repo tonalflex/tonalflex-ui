@@ -25,7 +25,6 @@
     "protobufjs": "^7.4.0",
     "protoc-gen-ts": "^0.8.7",
     "swiper": "^11.2.2",
-    "ts-proto": "^2.6.0",
     "vite-svg-loader": "^5.1.0",
     "vue": "^3.5.13",
     "vue-router": "^4.4.5"
@@ -46,6 +45,7 @@
     "protoc-gen-grpc-web": "^1.5.0",
     "sass": "^1.83.1",
     "sass-loader": "^16.0.4",
+    "ts-proto": "^2.7.0",
     "ts-protoc-gen": "^0.15.0",
     "typescript": "~5.6.3",
     "vite": "^6.0.1",

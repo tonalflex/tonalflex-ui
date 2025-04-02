@@ -26,7 +26,8 @@
       <button
         class="btn"
         :class="{ active: selectedButton === 'effectmap' }"
-        @click="selectButton('effectmap')"
+       
+        @click="fetchSystemInfo"
       >
         <AmpIcon class="btn-icon-custom" />
       </button>
@@ -75,7 +76,7 @@ import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop } from 'oh-vue-icons/icons';
 import TunerIcon from '@/components/icons/tuner.vue';
 import AmpIcon from '@/components/icons/amplifier-icon.vue';
-import SystemController from '@/stores/sushi/systemController';
+import SystemController from '@/backend/sushi/systemController';
 // import { cvInputLevel } from '@/stores/tonalflex/functions';
 
 // Register icons

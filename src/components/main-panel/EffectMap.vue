@@ -118,7 +118,7 @@ import {
   saveSessionSnapshot,
   createTrackAndRouteToMain,
   addPluginToTrackByName
-} from '@/stores/tonalflex/functions';
+} from '@/backend/tonalflexBackend';
 
 import { pluginList } from '@/components/plugins/pluginIndex';
 

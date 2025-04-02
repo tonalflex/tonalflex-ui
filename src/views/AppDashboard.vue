@@ -6,8 +6,8 @@
     <div class="task-bar">
       <Taskbar @button-clicked="toggleSelectedButton" />
       <div class="nav-overlay">
-        <SaveOverlay v-if="selectedButton === 'save'" />
-        <LoadOverlay v-if="selectedButton === 'load'" />
+        <SaveOverlay v-if="selectedButton === 'save'" :session="session" @save="handleSave" />
+        <LoadOverlay v-if="selectedButton === 'load'" @load="handleLoad" />
         <HelpOverlay v-if="selectedButton === 'help'" />
         <SettingsOverlay v-if="selectedButton === 'settings'" />
       </div>
@@ -18,7 +18,7 @@
         <Looper v-if="selectedButton === 'looper'" />
         <Tuner v-if="selectedButton === 'tuner'" />
         <Metronome v-if="selectedButton === 'metronome'" />
-        <EffectMap v-if="selectedButton === 'effectmap'" @update-plugins="updatePlugins" />
+        <EffectMap v-if="selectedButton === 'effectmap' && sessionReady" :session="session" @update-plugins="updatePlugins" />
       </div>
     </div>
   </div>
@@ -31,16 +31,17 @@ import LeftPanel from '@/components/LeftPanel.vue';
 import EffectMap from '@/components/main-panel/EffectMap.vue';
 import Tuner from '@/components/plugins/Tuner.vue';
 import Metronome from '@/components/plugins/Metronome.vue';
-import Looper  from '@/components/plugins/Looper.vue'
-import PluginPanel from '@/components/PluginPanel.vue'
+import Looper from '@/components/plugins/Looper.vue';
+import PluginPanel from '@/components/PluginPanel.vue';
 import Taskbar from '@/components/task-bar/TaskBar.vue';
-import SaveOverlay from '@/components/task-bar/save-overlay.vue'
-import LoadOverlay from '@/components/task-bar/load-overlay.vue'
-import HelpOverlay from '@/components/task-bar/help-overlay.vue'
-import SettingsOverlay from '@/components/task-bar/settings-overlay.vue'
+import SaveOverlay from '@/components/task-bar/save-overlay.vue';
+import LoadOverlay from '@/components/task-bar/load-overlay.vue';
+import HelpOverlay from '@/components/task-bar/help-overlay.vue';
+import SettingsOverlay from '@/components/task-bar/settings-overlay.vue';
+import { saveNamedSession, loadNamedSession, restoreFrontendSession } from '@/stores/tonalflex/functions';
 
-const { initialize } = useTonalFlexSession();
-const selectedButton = ref<string | null>("effectmap"); // Default view
+const { session, sessionReady, initialize } = useTonalFlexSession();
+const selectedButton = ref<string | null>("effectmap");
 const isPluginsEnabled = true;
 const selectedPlugins = ref<{ id: number; name: string }[]>([]);
 
@@ -52,10 +53,24 @@ const toggleSelectedButton = (button: string) => {
   selectedButton.value = selectedButton.value === button ? "effectmap" : button;
 };
 
+const handleSave = async (name: string) => {
+  if (session.value) {
+    await saveNamedSession(name, JSON.stringify(session.value));
+  }
+};
+
+const handleLoad = async (name: string) => {
+  const json = await loadNamedSession(name);
+  if (json) {
+    const data = JSON.parse(json);
+    await restoreFrontendSession(data);
+    session.value = data;
+  }
+};
+
 onMounted(() => {
   initialize();
 });
-
 </script>
 
 <style scoped>
@@ -69,36 +84,36 @@ onMounted(() => {
 }
 
 .left-panel {
-  position:fixed;
+  position: fixed;
   height: 100vh;
   width: 80px;
 }
 
-.task-bar{
-  position:fixed;
+.task-bar {
+  position: fixed;
   left: 80px;
   width: calc(100vw - 80px);
-  height:72px;
+  height: 72px;
 }
 
-.nav-overlay{
-  position:fixed;
+.nav-overlay {
+  position: fixed;
   left: 80px;
   top: 72px;
-  width: calc(100vw- 80px);
+  width: calc(100vw - 80px);
   height: calc(100vh - 72px);
-  color:white;
+  color: white;
 }
 
 .main-panel {
-  position:relative;
-  left:80px;
+  position: relative;
+  left: 80px;
   top: 72px;
   width: calc(100vw - 80px);
   height: calc(100vh - 72px);
 }
 
-.main-panel:before{
+.main-panel:before {
   content: "";
   position: absolute;
   top: 0;
