@@ -1,69 +1,66 @@
 <!-- src/components/EffectMap.vue -->
 <template>
   <div class="effect-map-wrapper">
-    <!-- Synced Navbar Slider showing prev/active/next -->
     <CloseOnOutsideClick v-model="showTrackSettings">
-    <div class="navbar-section" ref="navbarRef">
-      <div class="nav-bar">
-        <NavbarSpinner
-          :items="trackNames"
-          v-model="currentTrackIndex"
-          :emit-on-current-click="true"
-          @current-click="openTrackSettings"
-        />
-      </div>
-
-      <DropDown :visible="showTrackSettings">
-        <div class="track-settings-section" ref="dropdownRef">
-          <TrackSettings
-            :tracks="tracks"
-            :currentIndex="currentTrackIndex"
-            @add-track="addTrack"
-            @remove-track="removeTrack"
-            @rename-track="({ index, newName }) => tracks[index].name = newName"
-            @select-track="selectTrack"
-            @close="showTrackSettings = false"
+      <div class="navbar-section" ref="navbarRef">
+        <div class="nav-bar">
+          <NavbarSpinner
+            :items="trackNames"
+            v-model="currentTrackIndex"
+            :emit-on-current-click="true"
+            @current-click="openTrackSettings"
           />
         </div>
-      </DropDown>
-    </div>
-  </CloseOnOutsideClick>
-    <!-- Carousel Component -->
+        <DropDown :visible="showTrackSettings">
+          <div class="track-settings-section" ref="dropdownRef">
+            <TrackSettings
+              :tracks="pluginTracks"
+              :currentIndex="currentTrackIndex"
+              @rename-track="({ index, newName }) => pluginTracks[index].name = newName"
+              @select-track="selectTrack"
+              @close="showTrackSettings = false"
+            />
+          </div>
+        </DropDown>
+      </div>
+    </CloseOnOutsideClick>
+
     <Carousel
-      :items="tracks"
+      :items="pluginTracks"
       v-model:current-index="currentTrackIndex"
       class="charter-container"
     >
-      <template #default="{ item: track, index }">
+      <template #default="{ item: track }: { item: { name: string; plugins: { id: string; parameters: Record<string, number> }[] } }">
         <div class="grid-container">
           <div class="effect-map">
             <div class="direction-label">
-              <CableIcon class="cable-icon" />
+              <button><CableIcon class="cabel-icon"/></button>
             </div>
             <div class="line"></div>
 
             <div
               v-for="(plugin, index) in track.plugins"
-              :key="plugin.slotId"
+              :key="index"
               class="button-wrapper"
               @dragover.prevent
               @drop="onDrop($event, index)"
             >
               <button
                 class="box-btn"
-                :class="{ selected: plugin.id !== null }"
+                :class="{ selected: plugin.id !== '' }"
                 @click="handlePluginClick(index)"
+                @contextmenu.prevent="removePlugin(index)"
                 @dragstart="onDragStart($event, index)"
                 draggable="true"
               >
-                <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
+                <img v-if="plugin.id !== ''" :src="getPluginImage(plugin.id)" class="plugin-image" />
                 <OhVueIcon v-else name="co-plus" class="btn-icon" />
               </button>
               <div class="line"></div>
             </div>
 
             <div class="direction-label">
-              <SpeakerIcon class="speaker-icon" />
+              <button><SpeakerIcon class="speaker-icon"/></button>
             </div>
           </div>
         </div>
@@ -100,41 +97,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-
+import { ref, computed, watch, defineAsyncComponent, defineProps } from 'vue';
 import { OhVueIcon, addIcons } from 'oh-vue-icons';
 import { CoPlus } from 'oh-vue-icons/icons';
 import CableIcon from '@/components/icons/cable-icon.vue';
 import SpeakerIcon from '@/components/icons/speaker-icon.vue';
-import { defineAsyncComponent } from 'vue';
 import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
 import Carousel from '@/components/modules/ContentCarousel.vue';
 import TrackSettings from '@/components/main-panel/TrackSettings.vue';
 import DropDown from '@/components/modules/DropDown.vue';
 import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue';
-
-import {
-  initializeTonalflexSession,
-  saveSessionSnapshot,
-  createTrackAndRouteToMain,
-  addPluginToTrackByName
-} from '@/backend/tonalflexBackend';
-
 import { pluginList } from '@/components/plugins/pluginIndex';
+import { addPluginToTrack, rebuildPluginChain, saveSessionSnapshot } from '@/backend/tonalflexBackend';
 
 addIcons(CoPlus);
 
-interface Plugin {
-  id: string | null;
-  slotId: number;
-}
+defineProps<{
+  session: {
+    tracks: {
+      name: string;
+      plugins: {
+        id: string;
+        parameters: Record<string, number>;
+      }[];
+    }[];
+  } | null;
+}>();
 
-interface Track {
-  name: string;
-  plugins: Plugin[];
-}
-
-const tracks = ref<Track[]>([]);
 const currentTrackIndex = ref(0);
 const showPluginSelection = ref(false);
 const showPlugin = ref(false);
@@ -143,51 +132,33 @@ const dragIndex = ref<number | null>(null);
 const selectedPluginId = ref<string | null>(null);
 const showTrackSettings = ref(false);
 
-const trackNames = computed(() => tracks.value.map((track) => track.name));
-const currentPluginChain = computed(() => tracks.value[currentTrackIndex.value]?.plugins || []);
+const pluginTracks = computed(() =>
+  __props.session?.tracks.filter(t =>
+    ['Track4', 'Track5', 'Track6', 'Track7', 'Track8'].includes(t.name)
+  ) ?? []
+);
+
+const trackNames = computed(() => pluginTracks.value.map((track) => track.name));
+const currentPluginChain = computed(() => pluginTracks.value[currentTrackIndex.value]?.plugins || []);
 const availableEffects = ref(pluginList);
-
-const fetchInitialState = async () => {
-  await initializeTonalflexSession();
-
-  const saved = localStorage.getItem('tonalflex_session');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    if (parsed?.tracks) {
-      tracks.value = parsed.tracks;
-    }
-  }
-};
-
-const addTrack = async () => {
-  const newTrackName = `Track ${tracks.value.length + 1}`;
-  await createTrackAndRouteToMain(newTrackName);
-  tracks.value.push({
-    name: newTrackName,
-    plugins: [{ id: null, slotId: 1 }],
-  });
-  await saveSessionSnapshot();
-};
-
 
 const selectTrack = (index: number) => {
   currentTrackIndex.value = index;
 };
 
-const getPluginImage = (pluginId: string | null) => {
+const getPluginImage = (pluginId: string) => {
   const effect = pluginList.find((e) => e.id === pluginId);
   return effect ? effect.image : '';
 };
 
 const getPluginComponent = (pluginId: string | null) => {
-  // Extend if more plugin UIs are added
   return pluginId === 'neuralamp'
     ? defineAsyncComponent(() => import('@/components/plugins/NeuralAmp.vue'))
     : null;
 };
 
 const handlePluginClick = (index: number) => {
-  if (currentPluginChain.value[index].id) {
+  if (currentPluginChain.value[index].id !== '') {
     selectedPluginId.value = currentPluginChain.value[index].id;
     showPlugin.value = true;
   } else {
@@ -198,16 +169,38 @@ const handlePluginClick = (index: number) => {
 
 const selectEffect = async (effectId: string) => {
   if (currentIndex.value !== null) {
-    const track = tracks.value[currentTrackIndex.value];
+    const track = pluginTracks.value[currentTrackIndex.value];
     track.plugins[currentIndex.value].id = effectId;
-    await addPluginToTrackByName(track.name, effectId);
-
-    if (currentIndex.value === track.plugins.length - 1) {
-      track.plugins.push({ id: null, slotId: track.plugins.length + 1 });
-    }
+    await addPluginToTrack(track.name, effectId);
     await saveSessionSnapshot();
   }
   showPluginSelection.value = false;
+};
+
+const removePlugin = async (index: number) => {
+  const track = pluginTracks.value[currentTrackIndex.value];
+  track.plugins[index].id = '';
+  await rebuildPluginChain(track.name, track.plugins);
+  await saveSessionSnapshot();
+};
+
+const onDragStart = (event: DragEvent, index: number) => {
+  dragIndex.value = index;
+  event.dataTransfer!.setData('text/plain', index.toString());
+};
+
+const onDrop = async (event: DragEvent, targetIndex: number) => {
+  event.preventDefault();
+  if (dragIndex.value === null || dragIndex.value === targetIndex) return;
+
+  const track = pluginTracks.value[currentTrackIndex.value];
+  const draggedPlugin = track.plugins[dragIndex.value];
+  track.plugins.splice(dragIndex.value, 1);
+  track.plugins.splice(targetIndex, 0, draggedPlugin);
+  dragIndex.value = null;
+
+  await rebuildPluginChain(track.name, track.plugins);
+  await saveSessionSnapshot();
 };
 
 const closePluginSelection = () => {
@@ -219,30 +212,11 @@ const closePlugin = () => {
   selectedPluginId.value = null;
 };
 
-const onDragStart = (event: DragEvent, index: number) => {
-  dragIndex.value = index;
-  event.dataTransfer!.setData('text/plain', index.toString());
-};
-
-const onDrop = (event: DragEvent, targetIndex: number) => {
-  event.preventDefault();
-  if (dragIndex.value === null || dragIndex.value === targetIndex) return;
-
-  const draggedPlugin = currentPluginChain.value[dragIndex.value];
-  currentPluginChain.value.splice(dragIndex.value, 1);
-  currentPluginChain.value.splice(targetIndex, 0, draggedPlugin);
-  dragIndex.value = null;
-  saveSessionSnapshot();
-};
-
 const openTrackSettings = () => {
   showTrackSettings.value = !showTrackSettings.value;
 };
-
-onMounted(() => {
-  fetchInitialState();
-});
 </script>
+
 
 <style scoped>
 .effect-map-wrapper {
@@ -299,6 +273,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   width: 100%;
+  overflow: auto;
   height: calc(100% - 50px); /* Account for navbar height */
 }
 

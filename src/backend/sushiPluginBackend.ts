@@ -6,7 +6,7 @@ import type {
     SliderParameter,
     ToggleParameter,
     ComboBoxParameter
-  } from './IAudioBackend';
+  } from '@tonalflex/template-plugin';
   
   import ParameterController from "@/backend/sushi/parameterController"
   import type { ParameterIdentifier } from '@/proto/sushi/sushi_rpc';
@@ -103,11 +103,14 @@ import type {
           await controller.setParameterValue(id.processorId, id.parameterId, index);
         },
         getChoices: async () => {
-          const list = await controller.getProcessorParameters(processorId);
-          const id = await getParamId();
-          const param = list.parameters.find(p => p.id === id.parameterId);
-          return param?.comboBox?.items ?? [];
-        },
+            const list = await controller.getProcessorParameters(processorId);
+            const id = await getParamId();
+            const param = list.parameters.find(p => p.id === id.parameterId);
+            if (param?.details?.$case === 'comboBox') {
+              return param.details.comboBox.items;
+            }
+            return [];
+          },
         valueChangedEvent: {
           addListener: () => {
             console.warn('ComboBox listener not supported yet');

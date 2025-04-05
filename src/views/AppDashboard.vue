@@ -26,7 +26,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useTonalFlexSession } from '@/composables/useTonalFlexSession';
 import LeftPanel from '@/components/LeftPanel.vue';
 import EffectMap from '@/components/main-panel/EffectMap.vue';
 import Tuner from '@/components/plugins/Tuner.vue';
@@ -38,9 +37,16 @@ import SaveOverlay from '@/components/task-bar/save-overlay.vue';
 import LoadOverlay from '@/components/task-bar/load-overlay.vue';
 import HelpOverlay from '@/components/task-bar/help-overlay.vue';
 import SettingsOverlay from '@/components/task-bar/settings-overlay.vue';
-import { saveNamedSession, loadNamedSession, restoreFrontendSession } from '@/stores/tonalflex/functions';
+import {
+  initializeTonalflexSession,
+  saveNamedSession,
+  loadNamedSession,
+  restoreFrontendSession,
+  loadFrontendSession
+} from '@/backend/tonalflexBackend';
 
-const { session, sessionReady, initialize } = useTonalFlexSession();
+const session = ref(loadFrontendSession());
+const sessionReady = ref(false);
 const selectedButton = ref<string | null>("effectmap");
 const isPluginsEnabled = true;
 const selectedPlugins = ref<{ id: number; name: string }[]>([]);
@@ -68,8 +74,11 @@ const handleLoad = async (name: string) => {
   }
 };
 
-onMounted(() => {
-  initialize();
+onMounted(async () => {
+  const initResult = await initializeTonalflexSession();
+  session.value = loadFrontendSession();
+  sessionReady.value = true;
+  console.log(`[Init] Tonalflex session ${initResult === 'restored' ? 'restored from local session' : 'started with base state'}`);
 });
 </script>
 

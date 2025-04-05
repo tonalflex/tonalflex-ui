@@ -77,6 +77,9 @@ import { BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop 
 import TunerIcon from '@/components/icons/tuner.vue';
 import AmpIcon from '@/components/icons/amplifier-icon.vue';
 import SystemController from '@/backend/sushi/systemController';
+import audioRoutingController from '@/backend/sushi/audioRoutingController'
+import audiooGraphController from '@/backend/sushi/audioGraphController'
+import { AudioGraphController, AudioRoutingController } from '@/proto/sushi/sushi_rpc';
 // import { cvInputLevel } from '@/stores/tonalflex/functions';
 
 // Register icons
@@ -129,6 +132,8 @@ const getGradientFill = (level: number): string => {
 const fetchSystemInfo = async () => {
   const baseUrl = 'http://192.168.132.108:8081/sushi';
   const systemController = new SystemController(baseUrl);
+  const audioRoutingCtrl = new audioRoutingController(baseUrl);
+  const audioGraphCtrl = new audiooGraphController(baseUrl);
 
   try {
     console.log('Fetching Sushi System Info...');
@@ -143,6 +148,15 @@ const fetchSystemInfo = async () => {
 
     const outputChannels = await systemController.getOutputAudioChannelCount();
     console.log('Output Audio Channels:', outputChannels);
+
+    const inputChan = await audioRoutingCtrl.getAllInputConnections();
+    console.log("input:", inputChan);
+
+    const outputChan = await audioRoutingCtrl.getAllOutputConnections();
+    console.log("input:", outputChan);
+
+    const processes = await audioGraphCtrl.getAllProcessors();
+    console.log("processes: ", processes);
   } catch (err) {
     console.error('Failed to fetch system info:', err);
   }
