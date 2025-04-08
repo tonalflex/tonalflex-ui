@@ -79,7 +79,6 @@ import AmpIcon from '@/components/icons/amplifier-icon.vue';
 import SystemController from '@/backend/sushi/systemController';
 import audioRoutingController from '@/backend/sushi/audioRoutingController'
 import audiooGraphController from '@/backend/sushi/audioGraphController'
-import { AudioGraphController, AudioRoutingController } from '@/proto/sushi/sushi_rpc';
 // import { cvInputLevel } from '@/stores/tonalflex/functions';
 
 // Register icons
@@ -130,7 +129,7 @@ const getGradientFill = (level: number): string => {
 
 // Debug method (optional for dev tools/testing)
 const fetchSystemInfo = async () => {
-  const baseUrl = 'http://192.168.132.108:8081/sushi';
+  const baseUrl = 'http://elk-pi.local:8081/sushi';
   const systemController = new SystemController(baseUrl);
   const audioRoutingCtrl = new audioRoutingController(baseUrl);
   const audioGraphCtrl = new audiooGraphController(baseUrl);
@@ -157,6 +156,9 @@ const fetchSystemInfo = async () => {
 
     const processes = await audioGraphCtrl.getAllProcessors();
     console.log("processes: ", processes);
+
+    const tracks = await audioGraphCtrl.getAllTracks();
+    console.log("tracks: ", tracks);
   } catch (err) {
     console.error('Failed to fetch system info:', err);
   }

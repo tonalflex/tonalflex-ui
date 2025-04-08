@@ -8,14 +8,17 @@
   </div>
 </template>
 
-<script lang="ts">
-export default {
-  mounted() {
-    setTimeout(() => {
-      this.$router.push('/dashboard');
-    }, 6000);
-  },
-};
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { initializeTonalflexSession } from '@/backend/tonalflexBackend';
+
+const router = useRouter();
+
+onMounted(async () => {
+  await initializeTonalflexSession();
+  router.push('/dashboard');
+});
 </script>
 
 <style scoped>

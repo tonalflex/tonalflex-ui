@@ -1,24 +1,27 @@
 <template>
   <div class="dashboard">
-    <div class="left-panel">
-      <LeftPanel @button-clicked="toggleSelectedButton" />
-    </div>
-    <div class="task-bar">
-      <Taskbar @button-clicked="toggleSelectedButton" />
-      <div class="nav-overlay">
-        <SaveOverlay v-if="selectedButton === 'save'" :session="session" @save="handleSave" />
-        <LoadOverlay v-if="selectedButton === 'load'" @load="handleLoad" />
-        <HelpOverlay v-if="selectedButton === 'help'" />
-        <SettingsOverlay v-if="selectedButton === 'settings'" />
+    <div class="diveder-left">
+      <div class="left-panel">
+        <LeftPanel @button-clicked="toggleSelectedButton" />
       </div>
     </div>
-    <div class="main-panel">
-      <div class="slide-container">
-        <PluginPanel v-if="isPluginsEnabled" :activePlugins="selectedPlugins" />
+    <div class="divider-right">
+      <div class="task-bar">
+        <Taskbar @button-clicked="toggleSelectedButton" />
+      </div>
+      <div class="task-bar-overlay" v-if="selectedButton != 'effectmap'">
+        <SaveOverlay v-if="selectedButton === 'save'" @save="handleSave" />
+        <LoadOverlay v-if="selectedButton === 'load'" @load="handleLoad" />
+        <HelpOverlay v-if="selectedButton === 'help'"/>
+        <SettingsOverlay v-if="selectedButton === 'settings'" />
         <Looper v-if="selectedButton === 'looper'" />
         <Tuner v-if="selectedButton === 'tuner'" />
         <Metronome v-if="selectedButton === 'metronome'" />
-        <EffectMap v-if="selectedButton === 'effectmap' && sessionReady" :session="session" @update-plugins="updatePlugins" />
+      </div>
+      <div class="main-panel">
+        <div class="slide-container">
+          <EffectMap v-if="selectedButton === 'effectmap'" @update-plugins="updatePlugins" />
+        </div>
       </div>
     </div>
   </div>
@@ -31,7 +34,6 @@ import EffectMap from '@/components/main-panel/EffectMap.vue';
 import Tuner from '@/components/plugins/Tuner.vue';
 import Metronome from '@/components/plugins/Metronome.vue';
 import Looper from '@/components/plugins/Looper.vue';
-import PluginPanel from '@/components/PluginPanel.vue';
 import Taskbar from '@/components/task-bar/TaskBar.vue';
 import SaveOverlay from '@/components/task-bar/save-overlay.vue';
 import LoadOverlay from '@/components/task-bar/load-overlay.vue';
@@ -45,10 +47,8 @@ import {
   loadFrontendSession
 } from '@/backend/tonalflexBackend';
 
-const session = ref(loadFrontendSession());
-const sessionReady = ref(false);
+const isOverlayEnabled = ref(false);
 const selectedButton = ref<string | null>("effectmap");
-const isPluginsEnabled = true;
 const selectedPlugins = ref<{ id: number; name: string }[]>([]);
 
 const updatePlugins = (plugins: { id: number; name: string }[]) => {
@@ -56,12 +56,22 @@ const updatePlugins = (plugins: { id: number; name: string }[]) => {
 };
 
 const toggleSelectedButton = (button: string) => {
+  toggleOverlayVisiblilty();
   selectedButton.value = selectedButton.value === button ? "effectmap" : button;
 };
 
+const toggleOverlayVisiblilty = () => {
+  if(isOverlayEnabled.value === false){
+    isOverlayEnabled.value = true;
+  }else {
+    isOverlayEnabled.value = false;
+  }
+}
+
 const handleSave = async (name: string) => {
-  if (session.value) {
-    await saveNamedSession(name, JSON.stringify(session.value));
+  const session = loadFrontendSession();
+  if (session) {
+    await saveNamedSession(name, JSON.stringify(session));
   }
 };
 
@@ -70,15 +80,11 @@ const handleLoad = async (name: string) => {
   if (json) {
     const data = JSON.parse(json);
     await restoreFrontendSession(data);
-    session.value = data;
   }
 };
 
 onMounted(async () => {
-  const initResult = await initializeTonalflexSession();
-  session.value = loadFrontendSession();
-  sessionReady.value = true;
-  console.log(`[Init] Tonalflex session ${initResult === 'restored' ? 'restored from local session' : 'started with base state'}`);
+  await initializeTonalflexSession();
 });
 </script>
 
@@ -89,36 +95,38 @@ onMounted(async () => {
   width: 100vw;
   height: 100vh;
   font-family: Arial, sans-serif;
-  color: #1c1c1c;
+  overflow: hidden;
+}
+
+.divider-left{
+  width: 100%;
+  height: 100%;
+}
+
+.divider-right{
+  width: 100%;
+  height: 100%;
 }
 
 .left-panel {
-  position: fixed;
-  height: 100vh;
+  height: 100%;
   width: 80px;
 }
 
 .task-bar {
-  position: fixed;
-  left: 80px;
-  width: calc(100vw - 80px);
+  position: relative;
+  width: 100%;
   height: 72px;
 }
 
-.nav-overlay {
-  position: fixed;
-  left: 80px;
-  top: 72px;
-  width: calc(100vw - 80px);
+.task-bar-overlay{
+  width: 100%;
   height: calc(100vh - 72px);
-  color: white;
 }
 
 .main-panel {
   position: relative;
-  left: 80px;
-  top: 72px;
-  width: calc(100vw - 80px);
+  width: 100%;
   height: calc(100vh - 72px);
 }
 
@@ -126,7 +134,7 @@ onMounted(async () => {
   content: "";
   position: absolute;
   top: 0;
-  left: 0;
+  left:0;
   width: 100%;
   height: 100%;
   background-image: url('@/assets/light-logo.png');

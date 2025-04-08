@@ -1,21 +1,13 @@
-import { ref, computed } from 'vue';
+import { ref, computed, defineAsyncComponent } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import SushiSessionController from '@/backend/sushi/sessionController';
-import SushiCvGateController from '@/backend/sushi/cvGateController';
-import SushiNotificationController from '@/backend/sushi/notificationController';
-import SushiParameterController from '@/backend/sushi/parameterController';
 import ButlerController from '@/backend/butler/butler-functions';
-import { pluginList } from '@/components/plugins/pluginIndex';
-import { PluginType_Type, AudioConnection, ProcessorInfo, CvConnection, GateConnection, ParameterNotificationBlocklist, ParameterUpdate } from '@/proto/sushi/sushi_rpc';
-import type { Plugin, Track } from '@/types/tonalflex';
+import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 
-const BASE_URL = 'http://192.168.132.108:8081';
+const BASE_URL = 'http://192.168.0.10:8081';
 
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
 const sessionController = new SushiSessionController(BASE_URL + "/sushi");
-const cvGateController = new SushiCvGateController(BASE_URL + "/sushi");
-const notificationController = new SushiNotificationController(BASE_URL + "/sushi");
-const parameterController = new SushiParameterController(BASE_URL + "/sushi");
 const butler = new ButlerController(BASE_URL + "/butler");
 
 const SESSION_KEY = 'tonalflex_session';
@@ -26,38 +18,143 @@ export const currentTrackIndex = ref(0);
 export const sessionReady = ref(false);
 export const visibleTrackCount = ref(1);
 
-export const trackNames = computed(() => pluginTracks.value.map(t => t.name));
-export const currentTrack = computed(() => pluginTracks.value[currentTrackIndex.value]);
-export const visibleTracks = computed(() => pluginTracks.value.slice(0, visibleTrackCount.value));
+export const sushiTrackRoles = {
+  pre: ref<number | null>(null),
+  post: ref<number | null>(null),
+  user: ref<{ id: number; name: string }[]>([])
+};
+
+const internalPluginIds = ['send', 'return'];
+export const userPluginList = ref<PluginMeta[]>([]);
+export const systemPluginList = ref<PluginMeta[]>([]);
+
+const uiModules: Record<string, () => Promise<PluginModule>> =
+  import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
+
+  export const loadAvailablePlugins = async () => {
+    const plugins: PluginMeta[] = [];
+  
+    for (const path in uiModules) {
+      try {
+        const basePath = path.replace('/plugin-ui.es.js', '');
+  
+        const [metadata, image] = await Promise.all([
+          fetch(`${basePath}/metadata.json`).then(res => res.json()).catch(() => ({})),
+          fetch(`${basePath}/log.svg`)
+            .then(res => res.ok ? `${basePath}/logo.svg` : '/tonalflex.svg')
+            .catch(() => '/tonalflex.svg'),
+        ]);
+  
+        const meta: PluginMeta = {
+          id: metadata.id || path,
+          name: metadata.name,
+          type: metadata.type || 'vst3x',
+          uid: metadata.uid,
+          path: metadata.path,
+          image,
+          description: metadata.description || '',
+          isSystem: metadata["system-plugin"] === "true",
+          component: defineAsyncComponent(() => uiModules[path]()),
+        };
+  
+        plugins.push(meta);
+      } catch (e) {
+        console.warn(`[PluginLoader] Failed to load ${path}:`, e);
+      }
+    }
+  
+    userPluginList.value = plugins.filter(p => !p.isSystem);
+    systemPluginList.value = plugins.filter(p => p.isSystem);
+  };
+
+export const trackNames = computed(() => visibleTracks.value.map(t => t.alias));
+export const currentTrack = computed(() => visibleTracks.value[currentTrackIndex.value]);
+
+export const pluginTrackIds = computed(() =>
+  sushiTrackRoles.user.value.map(t => t.id)
+);
+
+export const trackListItems = computed(() =>
+  visibleTracks.value.map(track => ({
+    name: track.alias || track.name
+  }))
+);
+
+export const visibleTracks = computed(() =>
+  pluginTracks.value
+    .filter(t => /^Track[0-9]+$/.test(t.name))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, visibleTrackCount.value)
+);
+
+export const filteredPlugins = (plugins: Plugin[]): Plugin[] => {
+  return plugins.filter(p => !internalPluginIds.includes(p.id));
+};
+
+export const availableEffects = computed(() =>
+  userPluginList.value
+);
 
 export const initializeTonalflexSession = async (): Promise<void> => {
+  await loadAvailablePlugins();
+
   const savedUI = loadFrontendSession();
   const sushiTracks = await audioGraph.getAllTracks();
-  const sushiPlugins = await Promise.all(sushiTracks.map(t => audioGraph.getTrackProcessors(t.id)));
+
+  sushiTrackRoles.pre.value = sushiTracks.find(t => t.name === 'Track_Pre')?.id ?? null;
+  sushiTrackRoles.post.value = sushiTracks.find(t => t.name === 'Track_Post')?.id ?? null;
+  sushiTrackRoles.user.value = sushiTracks
+    .filter(t => /^Track[1-8]$/.test(t.name))
+    .map(t => ({ id: t.id, name: t.name }));
+
+  const defaultState = sushiTrackRoles.user.value.map(t => ({
+    id: t.id,
+    name: t.name,
+    alias: t.name,
+    plugins: [{ id: '', parameters: {} }]
+  }));
 
   if (!savedUI || savedUI.tracks.length === 0) {
-    console.log('[Init] No local frontend session — using default pluginTracks');
-    pluginTracks.value = sushiTracks
-      .filter(t => t.name.startsWith('Track'))
-      .map(t => ({ name: t.name, plugins: [{ id: '', parameters: {} }] }));
+    console.log('[Init] No local frontend session — using Sushi base tracks');
+    pluginTracks.value = defaultState;
+    await saveSessionSnapshot();
     sessionReady.value = true;
     return;
   }
 
-  pluginTracks.value = savedUI.tracks;
+  const aligned = await isSessionAligned(savedUI.tracks);
+  if (aligned) {
+    const result: Track[] = [];
+    for (const sushi of sushiTrackRoles.user.value) {
+      const saved = savedUI.tracks.find(t => t.id === sushi.id);
+      result.push({
+        id: sushi.id,
+        name: sushi.name,
+        alias: saved?.alias ?? sushi.name,
+        plugins: saved?.plugins ?? [{ id: '', parameters: {} }]
+      });
+    }
+    pluginTracks.value = result;
+  } else {
+    pluginTracks.value = defaultState;
+  }
+
+  await saveSessionSnapshot();
   sessionReady.value = true;
 };
 
-export const addPluginToTrack = async (trackName: string, pluginId: string): Promise<void> => {
-  const allTracks = await audioGraph.getAllTracks();
-  const track = allTracks.find(t => t.name === trackName);
-  if (!track) throw new Error(`Track '${trackName}' not found`);
+export const isSessionAligned = async (savedTracks: Track[]): Promise<boolean> => {
+  const sushiTracks = await audioGraph.getAllTracks();
+  const sushiIds = sushiTracks.map(t => t.id);
+  return savedTracks.every(t => sushiIds.includes(t.id));
+};
 
-  const plugin = pluginList.find(p => p.id === pluginId);
+export const addPluginToTrack = async (trackId: number, pluginId: string): Promise<void> => {
+  const plugin = userPluginList.value.find(p => p.id === pluginId);
   if (!plugin) throw new Error(`Plugin '${pluginId}' not found`);
 
   await audioGraph.createProcessorOnTrack(
-    track.id,
+    trackId,
     plugin.name,
     {
       internal: PluginType_Type.INTERNAL,
@@ -71,29 +168,25 @@ export const addPluginToTrack = async (trackName: string, pluginId: string): Pro
 };
 
 export const rebuildPluginChain = async (
-  trackName: string,
+  trackId: number,
   plugins: Plugin[]
 ): Promise<void> => {
-  const allTracks = await audioGraph.getAllTracks();
-  const track = allTracks.find(t => t.name === trackName);
-  if (!track) throw new Error(`Track '${trackName}' not found`);
-
-  const processors = await audioGraph.getTrackProcessors(track.id);
+  const processors = await audioGraph.getTrackProcessors(trackId);
   for (const p of processors) {
-    if (!['send', 'return'].includes(p.name.toLowerCase())) {
+    if (!internalPluginIds.includes(p.name.toLowerCase())) {
       await audioGraph.deleteProcessorFromTrack({
         processor: { id: p.id },
-        track: { id: track.id }
+        track: { id: trackId }
       });
     }
   }
 
   for (const plugin of plugins.filter(p => p.id !== '')) {
-    const def = pluginList.find(p => p.id === plugin.id);
+    const def = userPluginList.value.find(p => p.id === plugin.id);
     if (!def) continue;
 
     await audioGraph.createProcessorOnTrack(
-      track.id,
+      trackId,
       def.name,
       {
         internal: PluginType_Type.INTERNAL,
@@ -106,15 +199,59 @@ export const rebuildPluginChain = async (
     );
   }
 
-  const sendDef = pluginList.find(p => p.id === 'send');
+  const sendDef = userPluginList.value.find(p => p.id === 'send');
   if (sendDef) {
     await audioGraph.createProcessorOnTrack(
-      track.id,
+      trackId,
       sendDef.name,
       PluginType_Type.INTERNAL,
       sendDef.uid,
       sendDef.path
     );
+  }
+};
+
+export const deleteTrackByIndex = async (index: number): Promise<void> => {
+  const track = visibleTracks.value[index];
+  if (!track) return;
+
+  const processors = await audioGraph.getTrackProcessors(track.id);
+  for (const proc of processors) {
+    if (!internalPluginIds.includes(proc.name.toLowerCase())) {
+      await audioGraph.deleteProcessorFromTrack({
+        processor: { id: proc.id },
+        track: { id: track.id }
+      });
+    }
+  }
+
+  track.plugins = [{ id: '', parameters: {} }];
+  const trackIndexInAll = pluginTracks.value.findIndex(t => t.id === track.id);
+  if (trackIndexInAll !== -1) {
+    pluginTracks.value[trackIndexInAll].name = `Track${index + 1}`;
+  }
+
+  pluginTracks.value = [...pluginTracks.value];
+
+  visibleTrackCount.value = Math.max(visibleTrackCount.value - 1, 1);
+  if (currentTrackIndex.value >= visibleTrackCount.value) {
+    currentTrackIndex.value = visibleTrackCount.value - 1;
+  }
+
+  await saveSessionSnapshot();
+  console.log(`[Track] Cleared and hid track: ${track.name}`);
+};
+
+export const renameTrack = (index: number, newAlias: string): void => {
+  if (pluginTracks.value[index]) {
+    pluginTracks.value[index].alias = newAlias;
+    saveSessionSnapshot();
+  }
+};
+
+export const showNextTrack = (): void => {
+  if (visibleTrackCount.value < pluginTracks.value.filter(t => /^Track[0-9]+$/.test(t.name)).length) {
+    visibleTrackCount.value++;
   }
 };
 

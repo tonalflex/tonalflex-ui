@@ -1,14 +1,11 @@
 import './assets/main.css'
-
 import { createApp } from 'vue'
-import { createPinia } from 'pinia'
+import { MockBackend } from '@tonalflex/template-plugin'
+import type { IAudioBackend } from '@tonalflex/template-plugin'
 
 import App from './App.vue'
-import router from './router'
 
 const app = createApp(App)
-
-app.use(createPinia())
-app.use(router)
-
+const backend: IAudioBackend = new MockBackend()
+app.provide('audio-backend', backend)
 app.mount('#app')

@@ -90,11 +90,6 @@ export default defineComponent({
   align-items: center;
 }
 
-.logo {
-  height: 60px; /* Adjust logo height as needed */
-  width: auto; /* Maintain aspect ratio */
-}
-
 .btn{
   display:flex;
   justify-content: center;
