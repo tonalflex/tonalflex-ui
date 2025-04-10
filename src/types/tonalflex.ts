@@ -7,7 +7,7 @@ export interface Plugin {
 }
 
 export interface PluginModule {
-  default: Component
+  Plugin: Component;
   metadata: PluginMeta
 }
 

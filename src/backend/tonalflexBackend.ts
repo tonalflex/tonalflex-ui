@@ -1,10 +1,11 @@
-import { ref, computed, defineAsyncComponent } from 'vue';
+import { ref, computed, defineAsyncComponent, markRaw } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import SushiSessionController from '@/backend/sushi/sessionController';
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
+import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
 
-const BASE_URL = 'http://192.168.0.10:8081';
+const BASE_URL = 'http://elk-pi.local:8081';
 
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
 const sessionController = new SushiSessionController(BASE_URL + "/sushi");
@@ -17,55 +18,64 @@ export const pluginTracks = ref<Track[]>([]);
 export const currentTrackIndex = ref(0);
 export const sessionReady = ref(false);
 export const visibleTrackCount = ref(1);
-
 export const sushiTrackRoles = {
   pre: ref<number | null>(null),
   post: ref<number | null>(null),
   user: ref<{ id: number; name: string }[]>([])
 };
-
 const internalPluginIds = ['send', 'return'];
 export const userPluginList = ref<PluginMeta[]>([]);
 export const systemPluginList = ref<PluginMeta[]>([]);
+export const activePluginId = ref<string | null>(null);
+export const activeTrackId = ref<number | null>(null);
 
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
-  export const loadAvailablePlugins = async () => {
-    const plugins: PluginMeta[] = [];
-  
-    for (const path in uiModules) {
-      try {
-        const basePath = path.replace('/plugin-ui.es.js', '');
-  
-        const [metadata, image] = await Promise.all([
-          fetch(`${basePath}/metadata.json`).then(res => res.json()).catch(() => ({})),
-          fetch(`${basePath}/log.svg`)
-            .then(res => res.ok ? `${basePath}/logo.svg` : '/tonalflex.svg')
-            .catch(() => '/tonalflex.svg'),
-        ]);
-  
-        const meta: PluginMeta = {
-          id: metadata.id || path,
-          name: metadata.name,
-          type: metadata.type || 'vst3x',
-          uid: metadata.uid,
-          path: metadata.path,
-          image,
-          description: metadata.description || '',
-          isSystem: metadata["system-plugin"] === "true",
-          component: defineAsyncComponent(() => uiModules[path]()),
-        };
-  
-        plugins.push(meta);
-      } catch (e) {
-        console.warn(`[PluginLoader] Failed to load ${path}:`, e);
+export const loadAvailablePlugins = async () => {
+  const plugins: PluginMeta[] = [];
+
+  for (const path in uiModules) {
+    try {
+      const basePath = path.replace('/plugin-ui.es.js', '');
+
+      const [module, metadata, image] = await Promise.all([
+        uiModules[path](),
+        fetch(`${basePath}/metadata.json`).then(res => res.json()).catch(() => ({})),
+        fetch(`${basePath}/logo.svg`).then(res => res.ok ? `${basePath}/logo.svg` : '/tonalflex.svg').catch(() => '/tonalflex.svg')
+      ]);
+
+      if (!module.Plugin) {
+        console.warn(`[PluginLoader] Plugin module missing named export 'Plugin': ${path}`);
+        continue;
       }
+
+      const meta: PluginMeta = {
+        id: metadata.id || path,
+        name: metadata.name,
+        type: metadata.type || 'vst3x',
+        uid: metadata.uid,
+        path: metadata.path,
+        image,
+        description: metadata.description || '',
+        isSystem: metadata["system-plugin"] === "true",
+        component: markRaw(module.Plugin),
+      };
+
+      plugins.push(meta);
+    } catch (e) {
+      console.warn(`[PluginLoader] Failed to load ${path}:`, e);
     }
-  
-    userPluginList.value = plugins.filter(p => !p.isSystem);
-    systemPluginList.value = plugins.filter(p => p.isSystem);
-  };
+  }
+
+  userPluginList.value = plugins.filter(p => !p.isSystem);
+  systemPluginList.value = plugins.filter(p => p.isSystem);
+};
+
+export const openPluginUI = (trackId: number, pluginId: string) => {
+  activeTrackId.value = trackId;
+  activePluginId.value = pluginId;
+};
 
 export const trackNames = computed(() => visibleTracks.value.map(t => t.alias));
 export const currentTrack = computed(() => visibleTracks.value[currentTrackIndex.value]);
@@ -83,9 +93,44 @@ export const trackListItems = computed(() =>
 export const visibleTracks = computed(() =>
   pluginTracks.value
     .filter(t => /^Track[0-9]+$/.test(t.name))
+    .map(track => {
+      const plugins = [...track.plugins];
+      if (!plugins.length || plugins[plugins.length - 1].id !== '') {
+        plugins.push({ id: '', parameters: {} });
+      }
+      return { ...track, plugins };
+    })
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, visibleTrackCount.value)
 );
+
+export const getPluginImage = (pluginId: string): string => {
+  const match = userPluginList.value.find(p => p.id === pluginId)
+    ?? systemPluginList.value.find(p => p.id === pluginId);
+  return match?.image ?? '';
+};
+
+export const getPluginComponent = (pluginId: string | null) => {
+  return userPluginList.value.find(p => p.id === pluginId)?.component
+    ?? systemPluginList.value.find(p => p.id === pluginId)?.component
+    ?? null;
+};
+
+export const updatePluginSlot = async (trackId: number, slotIndex: number, pluginId: string): Promise<void> => {
+  const track = pluginTracks.value.find(t => t.id === trackId);
+  if (!track) return;
+
+  const updated = [...track.plugins];
+  updated[slotIndex].id = pluginId;
+
+  if (slotIndex === updated.length - 1) {
+    updated.push({ id: '', parameters: {} });
+  }
+
+  track.plugins = updated;
+  await rebuildPluginChain(trackId, updated);
+  await saveSessionSnapshot();
+};
 
 export const filteredPlugins = (plugins: Plugin[]): Plugin[] => {
   return plugins.filter(p => !internalPluginIds.includes(p.id));
@@ -127,11 +172,15 @@ export const initializeTonalflexSession = async (): Promise<void> => {
     const result: Track[] = [];
     for (const sushi of sushiTrackRoles.user.value) {
       const saved = savedUI.tracks.find(t => t.id === sushi.id);
+      const plugins = saved?.plugins ?? [];
+      if (!plugins.length || plugins[plugins.length - 1].id !== '') {
+        plugins.push({ id: '', parameters: {} });
+      }
       result.push({
         id: sushi.id,
         name: sushi.name,
         alias: saved?.alias ?? sushi.name,
-        plugins: saved?.plugins ?? [{ id: '', parameters: {} }]
+        plugins,
       });
     }
     pluginTracks.value = result;

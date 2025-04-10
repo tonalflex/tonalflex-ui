@@ -2,25 +2,26 @@
   <div class="dashboard">
     <div class="diveder-left">
       <div class="left-panel">
-        <LeftPanel @button-clicked="toggleSelectedButton" />
+        <LeftPanel @button-clicked="toggleSelectedView" />
       </div>
     </div>
     <div class="divider-right">
       <div class="task-bar">
-        <Taskbar @button-clicked="toggleSelectedButton" />
+        <Taskbar @button-clicked="toggleSelectedView" />
       </div>
-      <div class="task-bar-overlay" v-if="selectedButton != 'effectmap'">
-        <SaveOverlay v-if="selectedButton === 'save'" @save="handleSave" />
-        <LoadOverlay v-if="selectedButton === 'load'" @load="handleLoad" />
-        <HelpOverlay v-if="selectedButton === 'help'"/>
-        <SettingsOverlay v-if="selectedButton === 'settings'" />
-        <Looper v-if="selectedButton === 'looper'" />
-        <Tuner v-if="selectedButton === 'tuner'" />
-        <Metronome v-if="selectedButton === 'metronome'" />
+      <div class="task-bar-overlay" v-if="selectedView != 'effectmap'">
+        <SaveOverlay v-if="selectedView === 'save'" @save="handleSave" />
+        <LoadOverlay v-if="selectedView === 'load'" @load="handleLoad" />
+        <HelpOverlay v-if="selectedView === 'help'"/>
+        <SettingsOverlay v-if="selectedView === 'settings'" />
+        <Looper v-if="selectedView === 'looper'" />
+        <Tuner v-if="selectedView === 'tuner'" />
+        <Metronome v-if="selectedView === 'metronome'" />
+        <PluginUI v-if="selectedView === 'pluginUI'" @close-plugin-ui="selectedView = 'effectmap'"/>
       </div>
       <div class="main-panel">
         <div class="slide-container">
-          <EffectMap v-if="selectedButton === 'effectmap'" @update-plugins="updatePlugins" />
+          <EffectMap v-if="selectedView === 'effectmap'" @update-selected-view="selectedView = $event" />
         </div>
       </div>
     </div>
@@ -39,6 +40,7 @@ import SaveOverlay from '@/components/task-bar/save-overlay.vue';
 import LoadOverlay from '@/components/task-bar/load-overlay.vue';
 import HelpOverlay from '@/components/task-bar/help-overlay.vue';
 import SettingsOverlay from '@/components/task-bar/settings-overlay.vue';
+import PluginUI from '@/components/pluginUI.vue'
 import {
   initializeTonalflexSession,
   saveNamedSession,
@@ -48,19 +50,14 @@ import {
 } from '@/backend/tonalflexBackend';
 
 const isOverlayEnabled = ref(false);
-const selectedButton = ref<string | null>("effectmap");
-const selectedPlugins = ref<{ id: number; name: string }[]>([]);
+const selectedView = ref<string | null>("effectmap");
 
-const updatePlugins = (plugins: { id: number; name: string }[]) => {
-  selectedPlugins.value = plugins;
+const toggleSelectedView = (button: string) => {
+  toggleViewVisiblilty();
+  selectedView.value = selectedView.value === button ? "effectmap" : button;
 };
 
-const toggleSelectedButton = (button: string) => {
-  toggleOverlayVisiblilty();
-  selectedButton.value = selectedButton.value === button ? "effectmap" : button;
-};
-
-const toggleOverlayVisiblilty = () => {
+const toggleViewVisiblilty = () => {
   if(isOverlayEnabled.value === false){
     isOverlayEnabled.value = true;
   }else {
@@ -126,7 +123,7 @@ onMounted(async () => {
 
 .main-panel {
   position: relative;
-  width: 100%;
+  width: calc(100vw - 80px);
   height: calc(100vh - 72px);
 }
 

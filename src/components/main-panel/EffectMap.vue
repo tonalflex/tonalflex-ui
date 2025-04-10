@@ -33,12 +33,13 @@
     <Carousel
       :items="visibleTracks"
       v-model:current-index="currentTrackIndex"
+      v-if="!isPluginOverlayVisible"
       class="charter-container"
     >
       <template #default="slotProps">
         <div class="grid-container" v-if="slotProps.item">
           <div class="effect-map">
-            <div class="direction-label">
+            <div class="direction-label in-btn">
               <button class="box-btn-in-out">
                 <div class="btn-glass-border">
                   <CableIcon class="cable-icon" />
@@ -48,28 +49,28 @@
             <div class="line"></div>
 
             <div
-              v-for="(plugin, index) in filteredPlugins((slotProps.item as Track).plugins)"
+              v-for="(plugin, index) in plugins"
               :key="index"
               class="button-wrapper"
               @dragover.prevent
               @drop="onDrop($event, index)"
             >
-              <button
-                class="box-btn"
-                :class="{ selected: plugin.id !== '' }"
-                @click="handlePluginClick(index)"
-                @dragstart="onDragStart($event, index)"
-                draggable="true"
-              >
+            <button
+              class="box-btn"
+              :class="{ selected: plugin.id !== '' }"
+              @click="plugin.id === '' ? openPluginSelectionForSlot(index) : handlePluginClick(plugin.id)" 
+              @dragstart="onDragStart($event, index)"
+              draggable="true"
+            >
                 <div class="btn-glass-border">
-                <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
-                <OhVueIcon v-else name="co-plus" class="btn-icon" />
+                  <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
+                  <OhVueIcon v-else name="co-plus" class="btn-icon" />
                 </div>
               </button>
               <div class="line"></div>
             </div>
 
-            <div class="direction-label">
+            <div class="direction-label out-btn">
               <button class="box-btn-in-out">
                 <div class="btn-glass-border">
                   <SpeakerIcon class="speaker-icon" />
@@ -81,7 +82,7 @@
       </template>
     </Carousel>
 
-    <div v-if="showPluginSelection" class="plugin-selection-overlay">
+    <div v-if="pluginOverlayVisible" class="plugin-selection-overlay">
       <div class="plugin-selection-content">
         <button class="plugin-selection-close-btn" @click="closePluginSelection">✖</button>
         <h2>Select a Plugin</h2>
@@ -91,7 +92,7 @@
             class="plugin-card"
             v-for="effect in availableEffects"
             :key="effect.id"
-            @click="selectEffect(effect.id), closePluginSelection()"
+            @click="confirmPluginSelection(effect.id)"
           >
             <img
               :src="effect.image"
@@ -102,15 +103,6 @@
             <p class="plugin-card-description">{{ effect.description }}</p>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div v-if="showPlugin" class="plugin-overlay">
-      <div class="plugin-wrapper">
-        <div class="plugin-task-bar">
-          <button class="plugin-close-btn" @click="closePlugin">✖</button>
-        </div>
-        <component :is="getPluginComponent(selectedPluginId)" />
       </div>
     </div>
   </div>
@@ -124,9 +116,8 @@ import CableIcon from '@/components/icons/cable-icon.vue';
 import SpeakerIcon from '@/components/icons/speaker-icon.vue';
 import NavbarSpinner from '@/components/modules/NavbarSpinner.vue';
 import Carousel from '@/components/modules/ContentCarousel.vue';
-//import TrackSettings from '@/components/main-panel/TrackSettings.vue';
 import DropDown from '@/components/modules/DropDown.vue';
-import TrackList from '@/components/modules/List.vue'
+import TrackList from '@/components/modules/List.vue';
 import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue';
 import {
   visibleTracks,
@@ -134,105 +125,56 @@ import {
   trackNames,
   showNextTrack,
   renameTrack,
-  addPluginToTrack,
-  rebuildPluginChain,
-  filteredPlugins,
   deleteTrackByIndex,
   trackListItems,
   userPluginList,
+  updatePluginSlot,
+  rebuildPluginChain,
+  getPluginImage,
+  openPluginUI,
 } from '@/backend/tonalflexBackend';
-import type { Track } from '@/types/tonalflex';
+
+const activeTrack = computed(() => visibleTracks.value[currentTrackIndex.value]);
+const plugins = computed(() => activeTrack.value?.plugins ?? []);
+
+const pluginOverlayVisible = ref(false);
+const selectedSlotIndex = ref<number | null>(null);
+const dragIndex = ref<number | null>(null);
+const activePluginId = ref<string | null>(null);
+const showTrackSettings = ref(false);
+const availableEffects = computed(() => userPluginList.value);
+const isPluginOverlayVisible = ref(false);
 
 addIcons(CoPlus);
 
-const showPluginSelection = ref(false);
-const showPlugin = ref(false);
-const currentIndex = ref<number | null>(null);
-const dragIndex = ref<number | null>(null);
-const selectedPluginId = ref<string | null>(null);
-const showTrackSettings = ref(false);
-const availableEffects = computed(() => userPluginList.value);
+const emit = defineEmits<{
+  (e: 'update-selected-view', value: string): void;
+}>();
 
-/* // for deving!
-const availableEffects = [
-  {
-    id: 'reverb',
-    name: 'Reverb',
-    image: '/tonalflex.svg',
-    description: 'Adds spatial depth and echo to your audio.',
-  },
-  {
-    id: 'delay',
-    name: 'Delay',
-    image: '/tonalflex.svg',
-    description: 'Delays the input signal with adjustable timing.',
-  },
-  {
-    id: 'compressor',
-    name: 'Compressor',
-    image: '/tonalflex.svg',
-    description: 'Balances dynamic range by reducing loud peaks.',
-  },
-  {
-    id: 'eq',
-    name: 'Equalizer',
-    image: '/tonalflex.svg',
-    description: 'Adjusts the frequency balance of the sound.',
-  },
-  {
-    id: 'distortion',
-    name: 'Distortion',
-    image: '/tonalflex.svg',
-    description: 'Adds grit and saturation to the audio signal.',
-  },
-  {
-    id: 'chorus',
-    name: 'Chorus',
-    image: '/tonalflex.svg',
-    description: 'Thickens the sound by duplicating it slightly out of phase. ',
-  },
-]
-*/
-const getPluginImage = (pluginId: string) => {
-  const effect = availableEffects.value.find((e) => e.id === pluginId);
-  return effect ? effect.image : '';
-};
-
-const getPluginComponent = (pluginId: string | null) => {
-  const plugin = userPluginList.value.find(p => p.id === pluginId);
-  return plugin?.component || null;
-};
-
-const handlePluginClick = (index: number) => {
+const handlePluginClick = (pluginId: string) => {
   const track = visibleTracks.value[currentTrackIndex.value];
-  if (track.plugins[index].id) {
-    selectedPluginId.value = track.plugins[index].id;
-    showPlugin.value = true;
-  } else {
-    currentIndex.value = index;
-    showPluginSelection.value = true;
-  }
+  openPluginUI(track.id, pluginId); // sets activeTrackId + activePluginId
+  emit('update-selected-view', 'pluginUI'); // triggers view switch
 };
 
-const selectEffect = async (effectId: string) => {
+const openPluginSelectionForSlot = (index: number) => {
+  selectedSlotIndex.value = index;
+  pluginOverlayVisible.value = true;
+};
+
+const confirmPluginSelection = async (pluginId: string) => {
   const track = visibleTracks.value[currentTrackIndex.value];
-  if (currentIndex.value !== null) {
-    track.plugins[currentIndex.value].id = effectId;
-    await addPluginToTrack(track.id, effectId);
-    if (currentIndex.value === track.plugins.length - 1) {
-      track.plugins.push({ id: '', parameters: {} });
-    }
-    showPluginSelection.value = false;
+  if (selectedSlotIndex.value !== null) {
+    await updatePluginSlot(track.id, selectedSlotIndex.value, pluginId);
+    selectedSlotIndex.value = null;
+    pluginOverlayVisible.value = false;
+    activePluginId.value = pluginId;
   }
 };
 
 const closePluginSelection = () => {
-  showPluginSelection.value = false;
-};
-
-const closePlugin = () => {
-  showPlugin.value = false;
-  selectedPluginId.value = null;
+  pluginOverlayVisible.value = false;
+  selectedSlotIndex.value = null;
 };
 
 const onDragStart = (event: DragEvent, index: number) => {
@@ -317,6 +259,7 @@ const openTrackSettings = () => {
   justify-content: center;
   align-items: center;
   width: 100%;
+  overflow: auto;
   height: calc(100vh - 122px); /* Account for navbar height */
 }
 
@@ -335,6 +278,14 @@ const openTrackSettings = () => {
 
 .direction-label {
   color: rgba(39, 161, 28, 0.7);
+}
+
+.in-btn{
+  margin-top: 50px;
+}
+
+.out-btn{
+  padding-bottom: 50px;
 }
 
 .cable-icon {
@@ -420,6 +371,13 @@ const openTrackSettings = () => {
   color: rgba(126, 126, 126, 0.9);
 }
 
+.plugin-image{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .plugin-selection-overlay {
   position: fixed;
   display: flex;
@@ -480,10 +438,9 @@ const openTrackSettings = () => {
 }
 
 .plugin-card-image {
-  width: 100px;
-  height: 100px;
+  width: 150px;
+  height: 150px;
   object-fit: contain;
-  margin-bottom: 1rem;
 }
 
 .plugin-card-title {
@@ -498,39 +455,6 @@ const openTrackSettings = () => {
   color: white;
   text-align: center;
   flex-grow: 1;
-}
-
-.plugin-overlay {
-  position: fixed;
-  top: 72px;
-  left: 80px;
-  width: calc(100vw - 80px);
-  height: calc(100vh - 75px);
-  background: #131313;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.plugin-wrapper {
-  width: 100%;
-  height: 100%;
-  color: white;
-}
-
-.plugin-task-bar {
-  width: 100%;
-  height: 50px;
-  background: rgba(126, 126, 126, 0.5);
-}
-
-.plugin-close-btn {
-  float: right;
-  width: 50px;
-  height: 50px;
-  color: white;
-  border: none;
-  background: none;
 }
 
 .add-track-btn {

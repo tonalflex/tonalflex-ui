@@ -17,6 +17,6 @@ import Dashboard from '@/views/AppDashboard.vue'
   height: 100vh;
   margin: 0;
   padding: 0;
-  background-color: #131313
+  background-color: #131313;
 }
 </style>
