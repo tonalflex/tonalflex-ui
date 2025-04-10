@@ -47,7 +47,6 @@
               </button>
             </div>
             <div class="line"></div>
-
             <div
               v-for="(plugin, index) in plugins"
               :key="index"
@@ -55,6 +54,7 @@
               @dragover.prevent
               @drop="onDrop($event, index)"
             >
+            
             <button
               class="box-btn"
               :class="{ selected: plugin.id !== '' }"

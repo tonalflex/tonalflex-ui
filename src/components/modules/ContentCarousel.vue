@@ -122,9 +122,6 @@ onBeforeUnmount(() => {
   flex: 0 0 100%;
   width: 100%;
   height: 100%;
-  box-sizing: border-box;
-  display: flex; /* Enable centering of content */
-  justify-content: center; /* Center horizontally */
 }
 
 :deep(.carousel-track) {
