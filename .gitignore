@@ -1,1 +1,3 @@
 node_modules
+src/proto/**/*client.ts
+src/proto/**/*.ts

@@ -7,11 +7,13 @@ service SessionService {
   rpc LoadSession (LoadSessionRequest) returns (LoadSessionResponse);
   rpc ListSessions (ListSessionsRequest) returns (ListSessionsResponse);
   rpc DeleteSession (DeleteSessionRequest) returns (DeleteSessionResponse);
+  rpc SaveRuntimeSnapshot (SaveSessionRequest) returns (SaveSessionResponse);
+  rpc LoadRuntimeSnapshot (LoadSessionRequest) returns (LoadSessionResponse);
 }
 
 message SaveSessionRequest {
   string name = 1;
-  string json_data = 2; // Full SavedSession JSON blob
+  string json_data = 2;
 }
 
 message SaveSessionResponse {

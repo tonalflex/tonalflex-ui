@@ -4,12 +4,21 @@
 ```bash
 cd frontend
 mkdir src/generated
+#linux
 protoc \
   --plugin=./node_modules/.bin/protoc-gen-ts \
   --ts_out=./src/generated \
   --ts_opt=client_generic \
   -I ./src/proto \
-  ./src/proto/neural-amp/nam_service.proto
+  ./src/proto/butler/butler.proto
+
+#windows
+protoc ^
+  --plugin=protoc-gen-ts=.\node_modules\.bin\protoc-gen-ts.cmd ^
+  --ts_out=.\src\generated ^
+  --ts_opt=client_generic ^
+  -I .\src\proto ^
+  .\src\proto\butler\butler.proto
 ```
 
 This template should help get you started developing with Vue 3 in Vite.

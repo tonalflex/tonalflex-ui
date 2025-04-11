@@ -79,6 +79,8 @@ import AmpIcon from '@/components/icons/amplifier-icon.vue';
 import SystemController from '@/backend/sushi/systemController';
 import audioRoutingController from '@/backend/sushi/audioRoutingController'
 import audiooGraphController from '@/backend/sushi/audioGraphController'
+import parameterController from '@/backend/sushi/parameterController'
+import { ParameterController } from '@/proto/sushi/sushi_rpc';
 // import { cvInputLevel } from '@/stores/tonalflex/functions';
 
 // Register icons
@@ -133,6 +135,7 @@ const fetchSystemInfo = async () => {
   const systemController = new SystemController(baseUrl);
   const audioRoutingCtrl = new audioRoutingController(baseUrl);
   const audioGraphCtrl = new audiooGraphController(baseUrl);
+  const parameterCtrl = new parameterController(baseUrl);
 
   try {
     console.log('Fetching Sushi System Info...');
@@ -159,6 +162,12 @@ const fetchSystemInfo = async () => {
 
     const tracks = await audioGraphCtrl.getAllTracks();
     console.log("tracks: ", tracks);
+
+    const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
+    console.log("processors on track: ", trackProcessors);
+
+    const trackParams = await parameterCtrl.getTrackParameters(0);
+    console.log("track Parameters: ", trackParams);
   } catch (err) {
     console.error('Failed to fetch system info:', err);
   }
