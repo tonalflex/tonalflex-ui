@@ -7,7 +7,7 @@ apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 echo "[build] 💻 Installing Node.js..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
 
 echo "[build] 📦 Installing frontend dependencies..."
