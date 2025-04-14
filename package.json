@@ -50,6 +50,7 @@
     "vite": "^6.2.0",
     "vite-plugin-vue-devtools": "^7.6.5",
     "vite-svg-loader": "^5.1.0",
-    "vue-tsc": "^2.2.4"
+    "vue-tsc": "^2.2.4",
+    "pinia": "^3.0.2"
   }
 }
