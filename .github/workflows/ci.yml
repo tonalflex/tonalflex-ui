@@ -34,7 +34,7 @@ jobs:
             npm ci
             npm run build
 
-            which pyinstaller || python3 -m pyinstaller --version
+            ls dist || (echo "dist/ missing after build!" && exit 1)
 
             python3 -m pyinstaller --onefile \
               --name ui-server \
