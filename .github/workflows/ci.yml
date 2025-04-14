@@ -27,17 +27,23 @@ jobs:
           image: node:23-slim
           options: --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace --entrypoint ""
           run: |
-            apt-get update && apt-get install -y python3 python3-pip build-essential git curl
-            pip3 install pyinstaller
+            apt-get update && \
+            apt-get install -y python3 python3-pip build-essential && \
+            python3 -m pip install pyinstaller
+
             npm ci
             npm run build
-            pyinstaller --onefile \
+
+            which pyinstaller || python3 -m pyinstaller --version
+
+            python3 -m pyinstaller --onefile \
               --name ui-server \
               --add-data "dist:dist" \
               server/server.py
-            mkdir -p release
-            cp dist/ui-server release/
-            tar -czvf ui-server-linux-arm64.tar.gz -C release ui-server
+
+            mkdir -p bin
+            cp dist/ui-server bin/
+            tar -czvf ui-server-linux-arm64.tar.gz -C bin ui-server
 
       - name: Upload binary to GitHub Releases
         uses: softprops/action-gh-release@v2
