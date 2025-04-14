@@ -45,7 +45,7 @@ jobs:
             --add-data "dist:dist" \
             server/server.py
 
-          tar -czvf ui-server-linux-arm64.tar.gz dist/ui-server
+          tar -czvf ui-server-linux-arm64.tar.gz -C dist ui-server
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
