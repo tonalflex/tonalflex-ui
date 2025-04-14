@@ -1,0 +1,52 @@
+name: Cross-Compile & Release UI Server
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Linux ARM64 binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for cross-compilation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install pyinstaller
+
+      - name: Build and package
+        run: |
+          npm run build
+          pyinstaller --onefile \
+            --name ui-server \
+            --add-data "dist:dist" \
+            server/server.py
+
+          tar -czvf ui-server-linux-arm64.tar.gz dist/ui-server
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ui-server-linux-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
