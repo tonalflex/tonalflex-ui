@@ -26,7 +26,7 @@ jobs:
         with:
           image: python:3.12-slim
           options: --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace --entrypoint ""
-          run: ./script/build.sh
+          run: ./script/build-release.sh
 
       - name: Package binary as tar.gz
         run: |

@@ -1,7 +1,15 @@
+# General
 node_modules
-dist/
+
+# gRPC generated files
+src/proto/**/*client.ts
+src/proto/**/*.ts
 
 # Build artifacts
-build/
+dist/
 bin/
+build/
 ui-server.spec
+
+# MacOS
+.DS_Store
