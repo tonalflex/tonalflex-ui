@@ -1,0 +1,42 @@
+name: Cross-Compile & Release UI Server
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Linux ARM64 binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run QEMU builder container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: python:3.12-slim
+          options: --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace --entrypoint ""
+          run: ./script/build-release.sh
+
+      - name: Package binary as tar.gz
+        run: |
+          mkdir -p release
+          cp dist/ui-server release/
+          tar -czvf ui-server-linux-arm64.tar.gz -C release ui-server
+
+      - name: Upload binary to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ui-server-linux-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
