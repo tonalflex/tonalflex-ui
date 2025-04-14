@@ -6,10 +6,15 @@
 
     <div class="plugin-ui-grid">
       <div
-        v-for="(plugin, index) in activePlugins"
-        :key="plugin.processorId ?? index"
+        v-for="plugin in activePlugins"
+        :key="plugin.processorId"
         class="plugin-container"
       >
+      <div>
+        <pre>{{ plugin }}</pre>
+        <pre>Component: {{ getPluginComponent(plugin.id) }}</pre>
+        <pre>processor-id: {{ plugin.processorId }}</pre>
+      </div>
         <PluginWithBackend
           v-if="plugin.processorId != null && getPluginComponent(plugin.id)"
           :component="getPluginComponent(plugin.id)!"
@@ -21,23 +26,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import PluginWithBackend from '@/components/PluginWithBackend.vue';
 import {
   pluginTracks,
   getPluginComponent,
-  getActivePluginIdsForTrack,
+  getActivePluginsForTrack,
   currentTrackIndex
 } from '@/backend/tonalflexBackend';
 
-const activeTrack = computed(() => {
-  return pluginTracks.value[currentTrackIndex.value] ?? null;
-});
-
 const activePlugins = computed(() => {
-  if (!activeTrack.value) return [];
-  const activeIds = getActivePluginIdsForTrack(activeTrack.value.id);
-  return activeTrack.value.plugins.filter(p => activeIds.includes(p.id));
+  const track = pluginTracks.value[currentTrackIndex.value];
+  if (!track) return [];
+
+  console.log("TRACK PLUGINS:", track.plugins);
+  console.log("ACTIVE UI MAP:", getActivePluginsForTrack(track.id));
+
+  // Fallback test: just return all that have a processorId
+  return track.plugins.filter(p => p.processorId != null);
 });
 
 const handleClose = () => {
@@ -47,6 +53,10 @@ const handleClose = () => {
 const emit = defineEmits<{
   (e: 'close-plugin-ui'): void;
 }>();
+
+watch(activePlugins, (val) => {
+  console.log('[PluginUI] activePlugins changed:', val.map(p => p.processorId));
+});
 </script>
 
 <style scoped>

@@ -22,7 +22,7 @@ export const sushiTrackRoles = {
 const internalPluginIds = ['send', 'return'];
 export const userPluginList = ref<PluginMeta[]>([]);
 export const systemPluginList = ref<PluginMeta[]>([]);
-export const activePluginUIMap = ref<Record<number, string[]>>({});
+export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
 
 //
 // Read/Load Plugins meta etc
@@ -54,7 +54,7 @@ export const loadAvailablePlugins = async () => {
         id: metadata.id || path,
         name: metadata.name,
         type: metadata.type || 'vst3x',
-        uid: metadata.uid,
+        uid: metadata.name,
         path: metadata.path,
         image,
         description: metadata.description || '',
@@ -76,26 +76,28 @@ export const loadAvailablePlugins = async () => {
 //
 // Something track blabla
 //
-export const selectPluginOnTrack = (trackId: number, pluginId: string) => {
+export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
   if (!activePluginUIMap.value[trackId]) {
     activePluginUIMap.value[trackId] = [];
   }
-  if (!activePluginUIMap.value[trackId].includes(pluginId)) {
-    activePluginUIMap.value[trackId].push(pluginId);
+
+  const alreadyExists = activePluginUIMap.value[trackId].some(p => p.id === plugin.id);
+  if (!alreadyExists) {
+    activePluginUIMap.value[trackId].push(plugin);
   }
 };
 
 export const deselectPluginOnTrack = (trackId: number, pluginId: string) => {
   const list = activePluginUIMap.value[trackId];
   if (list) {
-    activePluginUIMap.value[trackId] = list.filter(id => id !== pluginId);
+    activePluginUIMap.value[trackId] = list.filter(plugin => plugin.id !== pluginId);
     if (activePluginUIMap.value[trackId].length === 0) {
       delete activePluginUIMap.value[trackId];
     }
   }
 };
 
-export const getActivePluginIdsForTrack = (trackId: number): string[] => {
+export const getActivePluginsForTrack = (trackId: number): Plugin[] => {
   return activePluginUIMap.value[trackId] ?? [];
 };
 
@@ -252,16 +254,29 @@ export const rebuildPluginChain = async (
       def.path
     );
 
-    // Re-fetch processors and match by name to find the new processor ID
     const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
     const newProc = updatedProcessors
       .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
       .reverse()
       .find(p => p.name === def.name);
 
-    if (newProc) {
-      plugin.processorId = newProc.id;
-    }
+      if (newProc) {
+        const track = pluginTracks.value.find(t => t.id === trackId);
+        if (track) {
+          const slotIndex = track.plugins.findIndex(p => p.id === plugin.id);
+          if (slotIndex !== -1) {
+            const updatedPlugin: Plugin = {
+              ...track.plugins[slotIndex],
+              processorId: newProc.id
+            };
+            track.plugins[slotIndex] = updatedPlugin;
+            selectPluginOnTrack(trackId, updatedPlugin);
+            console.log(`[Rebuild] Set processorId ${newProc.id} for plugin '${plugin.id}' in track ${trackId}`);
+          } else {
+            console.warn(`[Rebuild] Could not find plugin '${plugin.id}' in track ${trackId} to update processorId`);
+          }
+        }
+      }
   }
 
   if (sushiTrackRoles.post.value != null) {
