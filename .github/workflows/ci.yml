@@ -28,6 +28,12 @@ jobs:
           options: --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace --entrypoint ""
           run: ./script/build.sh
 
+      - name: Package binary as tar.gz
+        run: |
+          mkdir -p release
+          cp dist/ui-server release/
+          tar -czvf ui-server-linux-arm64.tar.gz -C release ui-server
+
       - name: Upload binary to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:

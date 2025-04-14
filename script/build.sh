@@ -2,10 +2,9 @@
 set -euo pipefail
 
 echo "[build] 🔧 Installing system dependencies..."
-apt-get update && \
-apt-get install -y --no-install-recommends \
-  python3-pip curl git ca-certificates gnupg && \
-rm -rf /var/lib/apt/lists/*
+apt-get update && apt-get install -y --no-install-recommends \
+  build-essential curl git ca-certificates gnupg \
+  && rm -rf /var/lib/apt/lists/*
 
 echo "[build] 💻 Installing Node.js..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
