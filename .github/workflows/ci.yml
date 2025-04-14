@@ -28,18 +28,21 @@ jobs:
           options: --platform linux/arm64 -v ${{ github.workspace }}:/workspace -w /workspace --entrypoint ""
           run: |
             apt-get update && \
-            apt-get install -y python3 python3-pip build-essential && \
-            python3 -m pip install pyinstaller --break-system-packages
+            apt-get install -y python3 python3-pip python3-venv build-essential && \
+            python3 -m venv /venv && \
+            . /venv/bin/activate && \
+            pip install pyinstaller
 
+            . /venv/bin/activate
             npm ci
             npm run build
-
-            ls dist || (echo "dist/ missing after build!" && exit 1)
 
             python3 -m pyinstaller --onefile \
               --name ui-server \
               --add-data "dist:dist" \
               server/server.py
+
+            ls dist/ui-server || (echo "❌ ui-server not created!" && exit 1)
 
             mkdir -p bin
             cp dist/ui-server bin/
