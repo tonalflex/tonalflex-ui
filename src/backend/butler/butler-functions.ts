@@ -70,6 +70,27 @@ class ButlerController {
     return response;
   }
 
+  async saveSnapshot(jsonData: string): Promise<void> {
+    try {
+      const request = SaveSessionRequest.create({ name: '__snapshot__', jsonData });
+      await this.client.saveSession(request);
+      console.log('[Butler] Snapshot saved.');
+    } catch (err) {
+      this.handleError(err, 'saving snapshot');
+    }
+  }
+
+  async loadSnapshot(): Promise<string | null> {
+    try {
+      const request = LoadSessionRequest.create({ name: '__snapshot__' });
+      const { response } = await this.client.loadSession(request);
+      return response.jsonData || null;
+    } catch (err) {
+      this.handleError(err, 'loading snapshot');
+      return null;
+    }
+  }
+
   private handleError(err: unknown, context: string): void {
     if (err instanceof RpcError) {
       console.error(`[Butler] Error ${context}:`, err.message);

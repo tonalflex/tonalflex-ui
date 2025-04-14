@@ -1,117 +1,124 @@
-// src/backend/SushiPluginBackend.ts
-/*
 import type {
-    IAudioBackend,
-    ParameterType,
-    ParameterMap,
-    SliderParameter,
-    ToggleParameter,
-    ComboBoxParameter
-  } from '@tonalflex/template-plugin';
-  
-  import ParameterController from "@/backend/sushi/parameterController"
-  import type { ParameterIdentifier } from '@/proto/sushi/sushi_rpc';
-  
-  export class SushiPluginBackend implements IAudioBackend {
-    constructor(
-      private controller: ParameterController,
-      private processorId: number
-    ) {}
-  
-    getParameterState<T extends ParameterType>(
-      name: string,
-      type: T
-    ): ParameterMap[T] {
-      const config = sushiMap[type];
-      if (!config) throw new Error(`Unsupported parameter type: ${type}`);
-      return config.adapt(() => this.getParamId(name), this.controller, this.processorId);
-    }
-  
-    getPluginFunction(name: string): (...args: any[]) => Promise<any> {
-      return async (...args: any[]) => {
-        console.warn(`SushiPluginBackend: No generic plugin function "${name}" implemented.`);
-        return Promise.resolve();
+  IAudioBackend,
+  ParameterType,
+  ParameterMap,
+  SliderParameter,
+  ToggleParameter,
+  ComboBoxParameter
+} from '@tonalflex/template-plugin';
+
+import ParameterController from '@/backend/sushi/parameterController';
+import type { ParameterIdentifier, ParameterInfo } from '@/proto/sushi/sushi_rpc';
+
+export class SushiPluginBackend implements IAudioBackend {
+  private paramCache: Record<string, ParameterIdentifier> = {};
+  private processorParams: ParameterInfo[] = [];
+  public ready: Promise<void>;
+
+  constructor(
+    private controller: ParameterController,
+    private processorId: number
+  ) {
+    this.ready = this.initialize();
+  }
+
+  private async initialize() {
+    const paramList = await this.controller.getProcessorParameters(this.processorId);
+    console.log('param list: ', paramList.parameters);
+    this.processorParams = paramList.parameters;
+    for (const param of this.processorParams) {
+      const id = {
+        processorId: this.processorId,
+        parameterId: param.id
       };
-    }
-  
-    private async getParamId(name: string): Promise<ParameterIdentifier> {
-      return await this.controller.getParameterId({
-        processor: { id: this.processorId },
-        parameterName: name
-      });
+      this.paramCache[param.name] = id;
     }
   }
-  
-  // Helpers to adapt Sushi param states into the frontend format
-  
-  type SushiGetterMap = {
-    [K in ParameterType]: {
-      adapt: (
-        getParamId: () => Promise<ParameterIdentifier>,
-        controller: ParameterController,
-        processorId: number
-      ) => ParameterMap[K];
+
+  getParameterState<T extends ParameterType>(name: string, type: T): ParameterMap[T] {
+    const id = this.paramCache[name];
+    if (!id) {
+      console.warn(`Parameter '${name}' not found. Known parameters:`, Object.keys(this.paramCache));
+      throw new Error(`Parameter '${name}' not found`);
+    }
+
+    const config = sushiMap[type];
+    if (!config) throw new Error(`Unsupported parameter type: ${type}`);
+
+    return config.adapt(id, this.controller, this.processorParams) as ParameterMap[T];
+  }
+
+  getPluginFunction(name: string): (..._args: unknown[]) => Promise<unknown> {
+    return async () => {
+      console.warn(`SushiPluginBackend: No generic plugin function "${name}" implemented.`);
+      return Promise.resolve();
     };
+  }
+}
+
+const sushiMap: {
+  [K in ParameterType]: {
+    adapt: (
+      id: ParameterIdentifier,
+      controller: ParameterController,
+      allParams: ParameterInfo[]
+    ) => ParameterMap[K];
   };
-  
-  const sushiMap: SushiGetterMap = {
-    slider: {
-      adapt: (getParamId, controller): SliderParameter => ({
-        getValue: async () => {
-          const id = await getParamId();
-          return controller.getParameterValue(id);
+} = {
+  slider: {
+    adapt: (id, controller): SliderParameter => ({
+      getValue: () => {
+        let value = 0;
+        controller.getParameterValue(id).then(v => value = v);
+        return value;
+      },
+      setValue: (value: number) => {
+        controller.setParameterValue(id.processorId, id.parameterId, value);
+      },
+      valueChangedEvent: {
+        addListener: () => {
+          console.warn('Slider listener not supported yet');
+          return -1;
         },
-        setValue: async (value: number) => {
-          const id = await getParamId();
-          await controller.setParameterValue(id.processorId, id.parameterId, value);
+        removeListener: () => {}
+      }
+    })
+  },
+  toggle: {
+    adapt: (id, controller): ToggleParameter => ({
+      getValue: () => {
+        let value = 0;
+        controller.getParameterValue(id).then(v => value = v);
+        return value > 0.5;
+      },
+      setValue: (value: boolean) => {
+        controller.setParameterValue(id.processorId, id.parameterId, value ? 1 : 0);
+      },
+      valueChangedEvent: {
+        addListener: () => {
+          console.warn('Toggle listener not supported yet');
+          return -1;
         },
-        valueChangedEvent: {
-          addListener: () => {
-            console.warn('Slider listener not supported yet');
-            return -1;
-          },
-          removeListener: () => {}
-        }
-      })
-    },
-    toggle: {
-      adapt: (getParamId, controller): ToggleParameter => ({
-        getValue: async () => {
-          const id = await getParamId();
-          return (await controller.getParameterValue(id)) > 0.5;
+        removeListener: () => {}
+      }
+    })
+  },
+  comboBox: {
+    adapt: (id, controller, params): ComboBoxParameter => {
+      const param = params.find(p => p.id === id.parameterId);
+      const max = param?.maxDomainValue ?? 0;
+      const choices = Array.from({ length: Math.round(max) + 1 }, (_, i) => `Option ${i}`);
+
+      return {
+        getChoiceIndex: () => {
+          let value = 0;
+          controller.getParameterValue(id).then(v => value = Math.floor(v));
+          return value;
         },
-        setValue: async (value: boolean) => {
-          const id = await getParamId();
-          await controller.setParameterValue(id.processorId, id.parameterId, value ? 1.0 : 0.0);
+        setChoiceIndex: (index: number) => {
+          controller.setParameterValue(id.processorId, id.parameterId, index);
         },
-        valueChangedEvent: {
-          addListener: () => {
-            console.warn('Toggle listener not supported yet');
-            return -1;
-          },
-          removeListener: () => {}
-        }
-      })
-    },
-    comboBox: {
-      adapt: (getParamId, controller, processorId): ComboBoxParameter => ({
-        getChoiceIndex: async () => {
-          const id = await getParamId();
-          return Math.floor(await controller.getParameterValue(id));
-        },
-        setChoiceIndex: async (index: number) => {
-          const id = await getParamId();
-          await controller.setParameterValue(id.processorId, id.parameterId, index);
-        },
-        getChoices: async () => {
-            const list = await controller.getProcessorParameters(processorId);
-            const id = await getParamId();
-            const param = list.parameters.find(p => p.id === id.parameterId);
-            if (param?.details?.$case === 'comboBox') {
-              return param.details.comboBox.items;
-            }
-            return [];
-          },
+        getChoices: () => choices,
         valueChangedEvent: {
           addListener: () => {
             console.warn('ComboBox listener not supported yet');
@@ -119,7 +126,7 @@ import type {
           },
           removeListener: () => {}
         }
-      })
+      };
     }
-  };
-  */
+  }
+};

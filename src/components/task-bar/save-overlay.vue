@@ -19,7 +19,7 @@
     listSavedSessions,
     saveNamedSession,
     deleteSavedSession,
-    loadFrontendSession,
+    loadSessionSnapshot,
   } from '@/backend/tonalflexBackend';
   
   const rawSessions = ref<string[]>([]);
@@ -34,7 +34,8 @@
   const handleSave = async () => {
     const name = prompt("Enter a name for the session:");
     if (name) {
-      const session = loadFrontendSession();
+      const session = await loadSessionSnapshot();
+      console.log('[DEBUG] Snapshot data before save:', session);
       if (session) {
         await saveNamedSession(name, JSON.stringify(session));
         await fetchSessions();
@@ -52,7 +53,7 @@
   
   const handleRename = async ({ index, newName }: { index: number; newName: string }) => {
     const oldName = rawSessions.value[index];
-    const session = loadFrontendSession();
+    const session = await loadSessionSnapshot();
     if (session && oldName !== newName) {
       await saveNamedSession(newName, JSON.stringify(session));
       await deleteSavedSession(oldName);

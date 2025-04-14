@@ -46,7 +46,7 @@ import {
   saveNamedSession,
   loadNamedSession,
   restoreFrontendSession,
-  loadFrontendSession
+  loadSessionSnapshot
 } from '@/backend/tonalflexBackend';
 
 const isOverlayEnabled = ref(false);
@@ -66,7 +66,7 @@ const toggleViewVisiblilty = () => {
 }
 
 const handleSave = async (name: string) => {
-  const session = loadFrontendSession();
+  const session = loadSessionSnapshot();
   if (session) {
     await saveNamedSession(name, JSON.stringify(session));
   }

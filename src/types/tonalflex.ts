@@ -4,6 +4,7 @@ import type { Component } from 'vue';
 export interface Plugin {
   id: string;
   parameters: Record<string, number>;
+  processorId?: number;
 }
 
 export interface PluginModule {

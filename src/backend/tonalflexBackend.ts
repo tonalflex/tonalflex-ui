@@ -1,18 +1,14 @@
 import { ref, computed, markRaw } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
-import SushiSessionController from '@/backend/sushi/sessionController';
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
+import SushiParameterController from './sushi/parameterController';
 
-const BASE_URL = 'http://elk-pi.local:8081';
-
+export const BASE_URL = 'http://elk-pi.local:8081';
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
-const sessionController = new SushiSessionController(BASE_URL + "/sushi");
+const parameterController = new SushiParameterController(BASE_URL + "/sushi");
 const butler = new ButlerController(BASE_URL + "/butler");
-
-const SESSION_KEY = 'tonalflex_session';
-const INTERNAL_SESSION_KEY = 'sushi_internal_session';
 
 export const pluginTracks = ref<Track[]>([]);
 export const currentTrackIndex = ref(0);
@@ -26,9 +22,11 @@ export const sushiTrackRoles = {
 const internalPluginIds = ['send', 'return'];
 export const userPluginList = ref<PluginMeta[]>([]);
 export const systemPluginList = ref<PluginMeta[]>([]);
-export const activePluginId = ref<string | null>(null);
-export const activeTrackId = ref<number | null>(null);
+export const activePluginUIMap = ref<Record<number, string[]>>({});
 
+//
+// Read/Load Plugins meta etc
+//
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
@@ -44,6 +42,8 @@ export const loadAvailablePlugins = async () => {
         fetch(`${basePath}/metadata.json`).then(res => res.json()).catch(() => ({})),
         fetch(`${basePath}/logo.svg`).then(res => res.ok ? `${basePath}/logo.svg` : '/tonalflex.svg').catch(() => '/tonalflex.svg')
       ]);
+
+      console.log('[PluginLoader] metadata for', path, metadata);
 
       if (!module.Plugin) {
         console.warn(`[PluginLoader] Plugin module missing named export 'Plugin': ${path}`);
@@ -68,18 +68,39 @@ export const loadAvailablePlugins = async () => {
     }
   }
 
+  console.log("plugins: ", plugins.filter(p => !p.isSystem))
   userPluginList.value = plugins.filter(p => !p.isSystem);
   systemPluginList.value = plugins.filter(p => p.isSystem);
 };
 
-export const openPluginUI = (trackId: number, pluginId: string) => {
-  activeTrackId.value = trackId;
-  activePluginId.value = pluginId;
+//
+// Something track blabla
+//
+export const selectPluginOnTrack = (trackId: number, pluginId: string) => {
+  if (!activePluginUIMap.value[trackId]) {
+    activePluginUIMap.value[trackId] = [];
+  }
+  if (!activePluginUIMap.value[trackId].includes(pluginId)) {
+    activePluginUIMap.value[trackId].push(pluginId);
+  }
+};
+
+export const deselectPluginOnTrack = (trackId: number, pluginId: string) => {
+  const list = activePluginUIMap.value[trackId];
+  if (list) {
+    activePluginUIMap.value[trackId] = list.filter(id => id !== pluginId);
+    if (activePluginUIMap.value[trackId].length === 0) {
+      delete activePluginUIMap.value[trackId];
+    }
+  }
+};
+
+export const getActivePluginIdsForTrack = (trackId: number): string[] => {
+  return activePluginUIMap.value[trackId] ?? [];
 };
 
 export const trackNames = computed(() => visibleTracks.value.map(t => t.alias));
 export const currentTrack = computed(() => visibleTracks.value[currentTrackIndex.value]);
-
 export const pluginTrackIds = computed(() =>
   sushiTrackRoles.user.value.map(t => t.id)
 );
@@ -140,10 +161,12 @@ export const availableEffects = computed(() =>
   userPluginList.value
 );
 
+//
+// Initiate device <-> ui sync
+//
 export const initializeTonalflexSession = async (): Promise<void> => {
   await loadAvailablePlugins();
 
-  const savedUI = loadFrontendSession();
   const sushiTracks = await audioGraph.getAllTracks();
 
   sushiTrackRoles.pre.value = sushiTracks.find(t => t.name === 'Track_Pre')?.id ?? null;
@@ -152,43 +175,35 @@ export const initializeTonalflexSession = async (): Promise<void> => {
     .filter(t => /^Track[1-8]$/.test(t.name))
     .map(t => ({ id: t.id, name: t.name }));
 
-  const defaultState = sushiTrackRoles.user.value.map(t => ({
-    id: t.id,
-    name: t.name,
-    alias: t.name,
-    plugins: [{ id: '', parameters: {} }]
-  }));
+  const snapshot = await loadSessionSnapshot();
 
-  if (!savedUI || savedUI.tracks.length === 0) {
-    console.log('[Init] No local frontend session — using Sushi base tracks');
-    pluginTracks.value = defaultState;
-    await saveSessionSnapshot();
-    sessionReady.value = true;
-    return;
-  }
+  if (snapshot && snapshot.tracks && await isSessionAligned(snapshot.tracks)) {
+    console.log('[Init] Snapshot matches Sushi — restoring UI state');
 
-  const aligned = await isSessionAligned(savedUI.tracks);
-  if (aligned) {
-    const result: Track[] = [];
-    for (const sushi of sushiTrackRoles.user.value) {
-      const saved = savedUI.tracks.find(t => t.id === sushi.id);
-      const plugins = saved?.plugins ?? [];
+    pluginTracks.value = snapshot.tracks.map(track => {
+      const plugins = [...track.plugins];
       if (!plugins.length || plugins[plugins.length - 1].id !== '') {
         plugins.push({ id: '', parameters: {} });
       }
-      result.push({
-        id: sushi.id,
-        name: sushi.name,
-        alias: saved?.alias ?? sushi.name,
-        plugins,
-      });
-    }
-    pluginTracks.value = result;
+      return {
+        ...track,
+        plugins
+      };
+    });
+
   } else {
-    pluginTracks.value = defaultState;
+    console.warn('[Init] No valid snapshot or misalignment — resetting session');
+
+    pluginTracks.value = sushiTrackRoles.user.value.map(t => ({
+      id: t.id,
+      name: t.name,
+      alias: t.name,
+      plugins: [{ id: '', parameters: {} }]
+    }));
+
+    await saveSessionSnapshot();
   }
 
-  await saveSessionSnapshot();
   sessionReady.value = true;
 };
 
@@ -198,41 +213,31 @@ export const isSessionAligned = async (savedTracks: Track[]): Promise<boolean> =
   return savedTracks.every(t => sushiIds.includes(t.id));
 };
 
-export const addPluginToTrack = async (trackId: number, pluginId: string): Promise<void> => {
-  const plugin = userPluginList.value.find(p => p.id === pluginId);
-  if (!plugin) throw new Error(`Plugin '${pluginId}' not found`);
-
-  await audioGraph.createProcessorOnTrack(
-    trackId,
-    plugin.name,
-    {
-      internal: PluginType_Type.INTERNAL,
-      vst2x: PluginType_Type.VST2X,
-      vst3x: PluginType_Type.VST3X,
-      lv2: PluginType_Type.LV2,
-    }[plugin.type],
-    plugin.uid,
-    plugin.path
-  );
-};
-
+//
+// Add, rearange and (delete plugins) not implemented
+//
 export const rebuildPluginChain = async (
   trackId: number,
   plugins: Plugin[]
 ): Promise<void> => {
-  const processors = await audioGraph.getTrackProcessors(trackId);
-  for (const p of processors) {
-    if (!internalPluginIds.includes(p.name.toLowerCase())) {
+  const allProcessors = await audioGraph.getTrackProcessors(trackId);
+
+  for (const p of allProcessors) {
+    const name = p.name.toLowerCase();
+    if (name.includes('send') || (!name.includes('return') && !internalPluginIds.includes(name))) {
       await audioGraph.deleteProcessorFromTrack({
         processor: { id: p.id },
-        track: { id: trackId }
+        track: { id: trackId },
       });
     }
   }
 
-  for (const plugin of plugins.filter(p => p.id !== '')) {
+  for (const plugin of plugins.filter(p => p.id && !internalPluginIds.includes(p.id))) {
     const def = userPluginList.value.find(p => p.id === plugin.id);
-    if (!def) continue;
+    if (!def) {
+      console.warn(`[Rebuild] Plugin ID '${plugin.id}' not found in loaded plugin list.`);
+      continue;
+    }
 
     await audioGraph.createProcessorOnTrack(
       trackId,
@@ -246,18 +251,60 @@ export const rebuildPluginChain = async (
       def.uid,
       def.path
     );
+
+    // Re-fetch processors and match by name to find the new processor ID
+    const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
+    const newProc = updatedProcessors
+      .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
+      .reverse()
+      .find(p => p.name === def.name);
+
+    if (newProc) {
+      plugin.processorId = newProc.id;
+    }
   }
 
-  const sendDef = userPluginList.value.find(p => p.id === 'send');
-  if (sendDef) {
+  if (sushiTrackRoles.post.value != null) {
+    const track = pluginTracks.value.find(t => t.id === trackId);
+    if (!track) {
+      console.warn(`[Rebuild] Could not find track with ID ${trackId} to create send`);
+      return;
+    }
+
+    const processorName = `${track.name}_send`;
+    console.log(`[Debug] Creating send processor: ${processorName}`);
+
     await audioGraph.createProcessorOnTrack(
       trackId,
-      sendDef.name,
+      processorName,
       PluginType_Type.INTERNAL,
-      sendDef.uid,
-      sendDef.path
+      'sushi.testing.send',
+      ''
     );
+
+    const finalProcessors = await audioGraph.getTrackProcessors(trackId);
+    const sendProc = finalProcessors.find(p => p.name === processorName);
+
+    if (sendProc) {
+      const propList = await parameterController.getProcessorProperties(sendProc.id);
+      const destProp = propList.properties.find(p => p.name === 'destination_name');
+
+      if (destProp) {
+        await parameterController.setPropertyValue(
+          sendProc.id,
+          destProp.id,
+          'Post_return'
+        );
+        console.log(`[Routing] ${processorName} now routes to Post_return on track ${trackId}`);
+      } else {
+        console.warn(`[Routing] 'destination_name' param not found on ${processorName}`);
+      }
+    } else {
+      console.warn(`[Routing] Failed to find created send processor: ${processorName}`);
+    }
   }
+
+  console.log(`[Rebuild] Finished plugin chain rebuild for track ${trackId}`);
 };
 
 export const deleteTrackByIndex = async (index: number): Promise<void> => {
@@ -304,20 +351,71 @@ export const showNextTrack = (): void => {
   }
 };
 
-export const saveSessionSnapshot = async (): Promise<void> => {
+//
+// Session functions
+//
+const saveSessionSnapshot = async (): Promise<void> => {
+  const sessionTracks: Track[] = [];
+
+  for (const track of pluginTracks.value) {
+    const pluginsWithParams = [];
+
+    for (const plugin of track.plugins) {
+      if (!plugin.id) {
+        pluginsWithParams.push({ id: '', parameters: {} });
+        continue;
+      }
+
+      const def = userPluginList.value.find(p => p.id === plugin.id)
+        ?? systemPluginList.value.find(p => p.id === plugin.id);
+      if (!def) continue;
+
+      // fetch processor ID based on plugin name (assumes unique per track)
+      const processors = await audioGraph.getTrackProcessors(track.id);
+      const proc = processors.find(p => p.name === def.name);
+      if (!proc) continue;
+
+      const paramList = await parameterController.getProcessorParameters(proc.id);
+
+      const paramValues: Record<string, number> = {};
+      for (const param of paramList.parameters) {
+        const value = await parameterController.getParameterValue({
+          processorId: proc.id,
+          parameterId: param.id
+        });
+        paramValues[param.name] = value;
+      }
+
+      pluginsWithParams.push({
+        id: plugin.id,
+        parameters: paramValues
+      });
+    }
+
+    sessionTracks.push({
+      id: track.id,
+      name: track.name,
+      alias: track.alias,
+      plugins: pluginsWithParams
+    });
+  }
+
   try {
-    const sushiState = await sessionController.saveSession();
-    localStorage.setItem(INTERNAL_SESSION_KEY, JSON.stringify(sushiState));
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ tracks: pluginTracks.value }));
-    console.log('[Session] Snapshot saved');
-  } catch (error) {
-    console.error('[Session] Failed to save session:', error);
+    await butler.saveSnapshot(JSON.stringify({ tracks: sessionTracks }));
+  } catch (e) {
+    console.warn('[Session] Failed to save full snapshot:', e);
   }
 };
 
-export const loadFrontendSession = (): { tracks: Track[] } | null => {
-  const data = localStorage.getItem(SESSION_KEY);
-  return data ? JSON.parse(data) : null;
+export const loadSessionSnapshot = async (): Promise<{ tracks: Track[] } | null> => {
+  try {
+    const raw = await butler.loadSnapshot();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn('[Session] Failed to parse snapshot JSON:', e);
+    return null;
+  }
 };
 
 export const restoreFrontendSession = async (data: { tracks: Track[] }): Promise<void> => {

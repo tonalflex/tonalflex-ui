@@ -1,11 +1,11 @@
 <template>
     <div class="help">
-        <Plugin />
+        <h2>Help</h2>
     </div>
 </template>
 
 <script setup lang="ts">
-import { Plugin } from "@tonalflex/template-plugin";
+
 </script>
 
 <style scoped>

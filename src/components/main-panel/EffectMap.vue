@@ -131,7 +131,7 @@ import {
   updatePluginSlot,
   rebuildPluginChain,
   getPluginImage,
-  openPluginUI,
+  selectPluginOnTrack,
 } from '@/backend/tonalflexBackend';
 
 const activeTrack = computed(() => visibleTracks.value[currentTrackIndex.value]);
@@ -153,8 +153,8 @@ const emit = defineEmits<{
 
 const handlePluginClick = (pluginId: string) => {
   const track = visibleTracks.value[currentTrackIndex.value];
-  openPluginUI(track.id, pluginId); // sets activeTrackId + activePluginId
-  emit('update-selected-view', 'pluginUI'); // triggers view switch
+  selectPluginOnTrack(track.id, pluginId);
+  emit('update-selected-view', 'pluginUI');
 };
 
 const openPluginSelectionForSlot = (index: number) => {

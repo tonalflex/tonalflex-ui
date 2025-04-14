@@ -132,30 +132,28 @@ const getGradientFill = (level: number): string => {
 // Debug method (optional for dev tools/testing)
 const fetchSystemInfo = async () => {
   const baseUrl = 'http://elk-pi.local:8081/sushi';
-  const systemController = new SystemController(baseUrl);
-  const audioRoutingCtrl = new audioRoutingController(baseUrl);
   const audioGraphCtrl = new audiooGraphController(baseUrl);
   const parameterCtrl = new parameterController(baseUrl);
 
   try {
     console.log('Fetching Sushi System Info...');
-    const version = await systemController.getSushiVersion();
-    console.log('Sushi Version:', version);
+    //const version = await systemController.getSushiVersion();
+    //console.log('Sushi Version:', version);
 
-    const buildInfo = await systemController.getBuildInfo();
-    console.log('Sushi Build Info:', buildInfo);
+    //const buildInfo = await systemController.getBuildInfo();
+    //console.log('Sushi Build Info:', buildInfo);
 
-    const inputChannels = await systemController.getInputAudioChannelCount();
-    console.log('Input Audio Channels:', inputChannels);
+    //const inputChannels = await systemController.getInputAudioChannelCount();
+    //console.log('Input Audio Channels:', inputChannels);
 
-    const outputChannels = await systemController.getOutputAudioChannelCount();
-    console.log('Output Audio Channels:', outputChannels);
+    //const outputChannels = await systemController.getOutputAudioChannelCount();
+    //onsole.log('Output Audio Channels:', outputChannels);
 
-    const inputChan = await audioRoutingCtrl.getAllInputConnections();
-    console.log("input:", inputChan);
+    //const inputChan = await audioRoutingCtrl.getAllInputConnections();
+    //console.log("input:", inputChan);
 
-    const outputChan = await audioRoutingCtrl.getAllOutputConnections();
-    console.log("input:", outputChan);
+    //const outputChan = await audioRoutingCtrl.getAllOutputConnections();
+    //console.log("input:", outputChan);
 
     const processes = await audioGraphCtrl.getAllProcessors();
     console.log("processes: ", processes);
@@ -163,11 +161,33 @@ const fetchSystemInfo = async () => {
     const tracks = await audioGraphCtrl.getAllTracks();
     console.log("tracks: ", tracks);
 
-    const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
-    console.log("processors on track: ", trackProcessors);
+    const param = await parameterCtrl.getProcessorParameters(28);
+    console.log("parameter: ", param);
 
-    const trackParams = await parameterCtrl.getTrackParameters(0);
-    console.log("track Parameters: ", trackParams);
+    // debug for re adding send!
+    const processorId = 28; // e.g., Track1_send
+
+    const props = await parameterCtrl.getProcessorProperties(processorId);
+    console.log('[Props]', props);
+
+    const destinationProp = props.properties.find(p =>
+      p.name === 'destination_name' || p.name === 'destination' || p.name === 'dest_track'
+    );
+
+    if (!destinationProp) {
+      console.warn('Destination property not found');
+    } else {
+      const value = await parameterCtrl.getPropertyValue({
+        processorId,
+        propertyId: destinationProp.id
+      });
+      console.log(`Destination property value for processor ${processorId}:`, value);
+    }
+    //const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
+    //console.log("processors on track: ", trackProcessors);
+
+    //const trackParams = await parameterCtrl.getTrackParameters(0);
+    //console.log("track Parameters: ", trackParams);
   } catch (err) {
     console.error('Failed to fetch system info:', err);
   }
