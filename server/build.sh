@@ -1,35 +1,28 @@
 #!/bin/bash
+set -euo pipefail
 
-set -e
+echo "[build] 🔧 Installing system dependencies..."
+apt-get update && apt-get install -y --no-install-recommends \
+  build-essential curl git ca-certificates gnupg \
+  && rm -rf /var/lib/apt/lists/*
 
-SERVER_NAME="ui-server"
-RELEASE_DIR="bin"
-SERVER_SCRIPT="server/server.py"
+echo "[build] 💻 Installing Node.js..."
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
 
-# Absolute paths
-ROOT_DIR="$(pwd)"
-DIST_DIR="$ROOT_DIR/dist"
-SCRIPT_PATH="$ROOT_DIR/$SERVER_SCRIPT"
-
-echo "🛠 Building Vite app..."
+echo "[build] 📦 Installing frontend deps..."
+npm ci
 npm run build
 
-if [ ! -d "$DIST_DIR" ]; then
-  echo "❌ Build failed or dist/ folder missing!"
-  exit 1
-fi
+echo "[build] 🐍 Installing Python tools..."
+pip install --upgrade pip
+pip install pyinstaller
 
-echo "🧼 Cleaning up old artifacts..."
-rm -rf "$RELEASE_DIR" build dist/__pycache__
+echo "[build] 🛠️  Building binary..."
+pyinstaller --onefile \
+  --name ui-server \
+  --add-data "dist:dist" \
+  server/server.py
 
-echo "📦 Packaging server binary with embedded static files..."
-pyinstaller \
-  --onefile \
-  --name "$SERVER_NAME" \
-  --add-data "$DIST_DIR:dist" \
-  --distpath "$RELEASE_DIR" \
-  "$SCRIPT_PATH"
+echo "[build] ✅ Binary available at: dist/ui-server"
 
-echo "✅ Done!"
-echo "Run http server binary with:"
-echo "   cd $RELEASE_DIR && ./$SERVER_NAME"
