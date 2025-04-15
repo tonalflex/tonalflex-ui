@@ -1,5 +1,4 @@
 <template>
-
   <div class="side-bar">
     <div class="menu-buttons">
       <button
@@ -26,7 +25,6 @@
       <button
         class="btn"
         :class="{ active: selectedButton === 'effectmap' }"
-       
         @click="fetchSystemInfo"
       >
         <AmpIcon class="btn-icon-custom" />
@@ -40,7 +38,7 @@
         orient="vertical"
         max="100"
         :style="{
-          background: getGradientFill(cvInputLevel)
+          background: getGradientFill(cvInputLevel),
         }"
         v-model="volume"
         class="slider"
@@ -57,7 +55,7 @@
         orient="vertical"
         max="100"
         :style="{
-          background: getGradientFill(cvInputLevel)
+          background: getGradientFill(cvInputLevel),
         }"
         v-model="masterVolume"
         class="slider"
@@ -67,24 +65,37 @@
       />
     </div>
   </div>
-
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { OhVueIcon, addIcons } from 'oh-vue-icons';
-import { BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop } from 'oh-vue-icons/icons';
-import TunerIcon from '@/components/icons/tuner.vue';
-import AmpIcon from '@/components/icons/amplifier-icon.vue';
-import SystemController from '@/backend/sushi/systemController';
-import audioRoutingController from '@/backend/sushi/audioRoutingController'
-import audiooGraphController from '@/backend/sushi/audioGraphController'
-import parameterController from '@/backend/sushi/parameterController'
-import { ParameterController } from '@/proto/sushi/sushi_rpc';
+import { ref } from "vue";
+import { OhVueIcon, addIcons } from "oh-vue-icons";
+import {
+  BiHeadphones,
+  BiVolumeUp,
+  FaUserAlt,
+  GiMetronome,
+  OiRepoForked,
+  CoLoop,
+} from "oh-vue-icons/icons";
+import TunerIcon from "@/components/icons/tuner.vue";
+import AmpIcon from "@/components/icons/amplifier-icon.vue";
+//import SystemController from '@/backend/sushi/systemController';
+//import audioRoutingController from '@/backend/sushi/audioRoutingController'
+import audiooGraphController from "@/backend/sushi/audioGraphController";
+import parameterController from "@/backend/sushi/parameterController";
+//import { ParameterController } from '@/proto/sushi/sushi_rpc';
 // import { cvInputLevel } from '@/stores/tonalflex/functions';
 
 // Register icons
-addIcons(BiHeadphones, BiVolumeUp, FaUserAlt, GiMetronome, OiRepoForked, CoLoop);
+addIcons(
+  BiHeadphones,
+  BiVolumeUp,
+  FaUserAlt,
+  GiMetronome,
+  OiRepoForked,
+  CoLoop
+);
 
 // Props
 defineProps<{
@@ -93,7 +104,7 @@ defineProps<{
 
 // Emits
 const emit = defineEmits<{
-  (e: 'button-clicked', button: string): void;
+  (e: "button-clicked", button: string): void;
 }>();
 
 // State
@@ -102,19 +113,19 @@ const masterVolume = ref(50);
 
 // Events
 const selectButton = (button: string) => {
-  emit('button-clicked', button);
+  emit("button-clicked", button);
 };
 
 // Prevent scrolling on touch
 const lockScroll = (event: TouchEvent) => {
   if (event.cancelable) {
     event.stopPropagation();
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
   }
 };
 
 const unlockScroll = () => {
-  document.body.style.overflow = '';
+  document.body.style.overflow = "";
 };
 
 const cvInputLevel = ref(0.9);
@@ -131,12 +142,43 @@ const getGradientFill = (level: number): string => {
 
 // Debug method (optional for dev tools/testing)
 const fetchSystemInfo = async () => {
-  const baseUrl = 'http://elk-pi.local:8081/sushi';
+  const baseUrl = "http://elk-pi.local:8081/sushi";
   const audioGraphCtrl = new audiooGraphController(baseUrl);
   const parameterCtrl = new parameterController(baseUrl);
 
-  try {
-    console.log('Fetching Sushi System Info...');
+    console.log("Fetching Sushi System Info...");
+
+    const processorId = 28; // your plugin's processor ID
+  const testValue = 0.29;
+
+  // Step 1: Fetch all parameters for the processor
+  const paramList = await parameterCtrl.getProcessorParameters(processorId);
+  const firstParam = paramList.parameters[0];
+
+  if (!firstParam) {
+    console.warn("❌ No parameters found for processor", processorId);
+    return;
+  }
+
+  const parameterId = firstParam.id;
+  const name = firstParam.name;
+
+  console.log(`🟡 Setting ${name} (ID: ${parameterId}) =`, testValue);
+
+  // Step 2: Set the value
+  await parameterCtrl.setParameterValue(processorId, parameterId, testValue);
+
+  // Step 3: Retrieve the value right after
+  const confirmed = await parameterCtrl.getParameterValue({ processorId, parameterId });
+
+  console.log(`🟢 Retrieved ${name} after set:`, confirmed);
+
+  // Step 4: Compare and verify
+  if (Math.abs(confirmed - testValue) < 0.0001) {
+    console.log("✅ Parameter set was successful!");
+  } else {
+    console.warn("❌ Parameter did not stick — Sushi ignored or reset it.");
+  }
     //const version = await systemController.getSushiVersion();
     //console.log('Sushi Version:', version);
 
@@ -155,6 +197,7 @@ const fetchSystemInfo = async () => {
     //const outputChan = await audioRoutingCtrl.getAllOutputConnections();
     //console.log("input:", outputChan);
 
+    /*
     const processes = await audioGraphCtrl.getAllProcessors();
     console.log("processes: ", processes);
 
@@ -164,60 +207,70 @@ const fetchSystemInfo = async () => {
     const param = await parameterCtrl.getProcessorParameters(28);
     console.log("parameter: ", param);
 
+    const paramValue = await parameterCtrl.getParameterValue({
+      processorId: 28, // the Sushi processor instance
+      parameterId: 1974136700, // the param ID inside that processor
+    });
+
+    console.log("param value:", paramValue);
+
     // debug for re adding send!
     const processorId = 28; // e.g., Track1_send
 
     const props = await parameterCtrl.getProcessorProperties(processorId);
-    console.log('[Props]', props);
+    console.log("[Props]", props);
 
-    const destinationProp = props.properties.find(p =>
-      p.name === 'destination_name' || p.name === 'destination' || p.name === 'dest_track'
+    const destinationProp = props.properties.find(
+      (p) =>
+        p.name === "destination_name" ||
+        p.name === "destination" ||
+        p.name === "dest_track"
     );
 
     if (!destinationProp) {
-      console.warn('Destination property not found');
+      console.warn("Destination property not found");
     } else {
       const value = await parameterCtrl.getPropertyValue({
         processorId,
-        propertyId: destinationProp.id
+        propertyId: destinationProp.id,
       });
-      console.log(`Destination property value for processor ${processorId}:`, value);
-    }
+      console.log(
+        `Destination property value for processor ${processorId}:`,
+        value
+      );
+    } */
     //const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
     //console.log("processors on track: ", trackProcessors);
 
     //const trackParams = await parameterCtrl.getTrackParameters(0);
     //console.log("track Parameters: ", trackParams);
-  } catch (err) {
-    console.error('Failed to fetch system info:', err);
-  }
+  
 };
 </script>
 
 <style scoped>
-.side-bar{
+.side-bar {
   display: grid;
   grid-template-columns: 80px;
   grid-template-rows: 3fr 3fr 3fr;
   height: 100vh;
   justify-content: center;
   border-right: 1px solid rgba(255, 255, 255, 0.2);
-  background-color: rgba(51, 51, 51, 0.2)
+  background-color: rgba(51, 51, 51, 0.2);
 }
 
-.menu-buttons{
+.menu-buttons {
   display: grid;
   gap: 15px;
   padding: 15px;
   justify-content: center;
-
 }
 
-.btn{
-  display:flex;
+.btn {
+  display: flex;
   justify-content: center;
   align-items: center;
-  width:40px;
+  width: 40px;
   height: 40px;
   background: linear-gradient(to bottom, #444, #222);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
@@ -229,45 +282,45 @@ const fetchSystemInfo = async () => {
   cursor: pointer;
 }
 
-.btn-icon{
-  width:30px;
+.btn-icon {
+  width: 30px;
   height: 30px;
-  color:rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.6);
 }
 
-.btn-icon-custom{
-  width:20px;
+.btn-icon-custom {
+  width: 20px;
   height: 20px;
-  color:rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .icon {
   width: 40px;
   height: 40px;
-  color:rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.6);
 }
 
-.volume-headphone{
+.volume-headphone {
   display: grid;
   grid-template-rows: auto 1fr;
   justify-content: center;
   align-items: start;
 }
 
-.volume-master{
+.volume-master {
   display: grid;
   grid-template-rows: auto 1fr;
   justify-content: center;
   align-items: start;
 }
 
-.slider{
+.slider {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
   writing-mode: vertical-lr;
   direction: rtl;
-  width:10px;
+  width: 10px;
   border-left: 1px solid rgba(142, 142, 142, 0.3);
   border-right: 1px solid rgba(142, 142, 142, 0.3);
   border-bottom: 1px solid rgba(142, 142, 142, 0.3);
@@ -298,5 +351,4 @@ const fetchSystemInfo = async () => {
 .slider:hover {
   cursor: pointer;
 }
-
 </style>

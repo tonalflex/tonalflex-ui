@@ -12,16 +12,22 @@
       <div class="task-bar-overlay" v-if="selectedView != 'effectmap'">
         <SaveOverlay v-if="selectedView === 'save'" @save="handleSave" />
         <LoadOverlay v-if="selectedView === 'load'" @load="handleLoad" />
-        <HelpOverlay v-if="selectedView === 'help'"/>
+        <HelpOverlay v-if="selectedView === 'help'" />
         <SettingsOverlay v-if="selectedView === 'settings'" />
         <Looper v-if="selectedView === 'looper'" />
         <Tuner v-if="selectedView === 'tuner'" />
         <Metronome v-if="selectedView === 'metronome'" />
-        <PluginUI v-if="selectedView === 'pluginUI'" @close-plugin-ui="selectedView = 'effectmap'"/>
+        <PluginUI
+          v-if="selectedView === 'pluginUI'"
+          @close-plugin-ui="selectedView = 'effectmap'"
+        />
       </div>
       <div class="main-panel">
         <div class="slide-container">
-          <EffectMap v-if="selectedView === 'effectmap'" @update-selected-view="selectedView = $event" />
+          <EffectMap
+            v-if="selectedView === 'effectmap'"
+            @update-selected-view="selectedView = $event"
+          />
         </div>
       </div>
     </div>
@@ -30,24 +36,24 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import LeftPanel from '@/components/LeftPanel.vue';
-import EffectMap from '@/components/main-panel/EffectMap.vue';
-import Tuner from '@/components/plugins/Tuner.vue';
-import Metronome from '@/components/plugins/Metronome.vue';
-import Looper from '@/components/plugins/Looper.vue';
-import Taskbar from '@/components/task-bar/TaskBar.vue';
-import SaveOverlay from '@/components/task-bar/save-overlay.vue';
-import LoadOverlay from '@/components/task-bar/load-overlay.vue';
-import HelpOverlay from '@/components/task-bar/help-overlay.vue';
-import SettingsOverlay from '@/components/task-bar/settings-overlay.vue';
-import PluginUI from '@/components/pluginUI.vue'
+import LeftPanel from "@/components/LeftPanel.vue";
+import EffectMap from "@/components/main-panel/EffectMap.vue";
+import Tuner from "@/components/plugins/Tuner.vue";
+import Metronome from "@/components/plugins/Metronome.vue";
+import Looper from "@/components/plugins/Looper.vue";
+import Taskbar from "@/components/task-bar/TaskBar.vue";
+import SaveOverlay from "@/components/task-bar/SaveOverlay.vue";
+import LoadOverlay from "@/components/task-bar/LoadOverlay.vue";
+import HelpOverlay from "@/components/task-bar/HelpOverlay.vue";
+import SettingsOverlay from "@/components/task-bar/SettingsOverlay.vue";
+import PluginUI from "@/components/PluginUI.vue";
 import {
   initializeTonalflexSession,
   saveNamedSession,
   loadNamedSession,
   restoreFrontendSession,
-  loadSessionSnapshot
-} from '@/backend/tonalflexBackend';
+  loadSessionSnapshot,
+} from "@/backend/tonalflexBackend";
 
 const isOverlayEnabled = ref(false);
 const selectedView = ref<string | null>("effectmap");
@@ -58,12 +64,12 @@ const toggleSelectedView = (button: string) => {
 };
 
 const toggleViewVisiblilty = () => {
-  if(isOverlayEnabled.value === false){
+  if (isOverlayEnabled.value === false) {
     isOverlayEnabled.value = true;
-  }else {
+  } else {
     isOverlayEnabled.value = false;
   }
-}
+};
 
 const handleSave = async (name: string) => {
   const session = loadSessionSnapshot();
@@ -95,12 +101,12 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.divider-left{
+.divider-left {
   width: 100%;
   height: 100%;
 }
 
-.divider-right{
+.divider-right {
   width: 100%;
   height: 100%;
 }
@@ -116,7 +122,7 @@ onMounted(async () => {
   height: 72px;
 }
 
-.task-bar-overlay{
+.task-bar-overlay {
   width: 100%;
   height: calc(100vh - 72px);
 }
@@ -131,10 +137,10 @@ onMounted(async () => {
   content: "";
   position: absolute;
   top: 0;
-  left:0;
+  left: 0;
   width: 100%;
   height: 100%;
-  background-image: url('@/assets/light-logo.png');
+  background-image: url("@/assets/light-logo.png");
   background-size: 80% auto;
   background-position: center;
   background-repeat: no-repeat;

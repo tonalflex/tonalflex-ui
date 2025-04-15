@@ -1,4 +1,5 @@
 import { ref, computed, markRaw } from 'vue';
+import type { Component } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
@@ -10,6 +11,7 @@ const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
 const parameterController = new SushiParameterController(BASE_URL + "/sushi");
 const butler = new ButlerController(BASE_URL + "/butler");
 
+//PLuginChain watchers
 export const pluginTracks = ref<Track[]>([]);
 export const currentTrackIndex = ref(0);
 export const sessionReady = ref(false);
@@ -20,6 +22,8 @@ export const sushiTrackRoles = {
   user: ref<{ id: number; name: string }[]>([])
 };
 const internalPluginIds = ['send', 'return'];
+
+// Plugin Collectors
 export const userPluginList = ref<PluginMeta[]>([]);
 export const systemPluginList = ref<PluginMeta[]>([]);
 export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
@@ -53,6 +57,7 @@ export const loadAvailablePlugins = async () => {
       const meta: PluginMeta = {
         id: metadata.id || path,
         name: metadata.name,
+        
         type: metadata.type || 'vst3x',
         uid: metadata.name,
         path: metadata.path,
@@ -60,6 +65,7 @@ export const loadAvailablePlugins = async () => {
         description: metadata.description || '',
         isSystem: metadata["system-plugin"] === "true",
         component: markRaw(module.Plugin),
+        parameters: metadata.parameters || {},
       };
 
       plugins.push(meta);
@@ -77,13 +83,32 @@ export const loadAvailablePlugins = async () => {
 // Something track blabla
 //
 export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
+
+  console.log('[selectPluginOnTrack] incoming plugin:', plugin);
+
+  if (!plugin || typeof plugin !== 'object' || !plugin.id) {
+    console.warn('[selectPluginOnTrack] Invalid plugin passed:', plugin);
+    return;
+  }
+
+  if (plugin.processorId == null) {
+    console.warn(`[selectPluginOnTrack] Plugin '${plugin.id}' missing processorId — not adding to UI map.`);
+    return;
+  }
+
   if (!activePluginUIMap.value[trackId]) {
     activePluginUIMap.value[trackId] = [];
   }
 
-  const alreadyExists = activePluginUIMap.value[trackId].some(p => p.id === plugin.id);
-  if (!alreadyExists) {
+  const exists = activePluginUIMap.value[trackId].some(
+    p => p.id === plugin.id && p.processorId === plugin.processorId
+  );
+
+  if (!exists) {
     activePluginUIMap.value[trackId].push(plugin);
+    console.log('[selectPluginOnTrack] Added plugin with processorId:', plugin.processorId);
+  } else {
+    console.log('[selectPluginOnTrack] Plugin already present:', plugin.id);
   }
 };
 
@@ -137,6 +162,11 @@ export const getPluginComponent = (pluginId: string | null) => {
   return userPluginList.value.find(p => p.id === pluginId)?.component
     ?? systemPluginList.value.find(p => p.id === pluginId)?.component
     ?? null;
+};
+
+export const getPluginMetaByComponent = (component: Component): PluginMeta | undefined => {
+  return userPluginList.value.find(p => p.component === component)
+      ?? systemPluginList.value.find(p => p.component === component);
 };
 
 export const updatePluginSlot = async (trackId: number, slotIndex: number, pluginId: string): Promise<void> => {
@@ -222,6 +252,7 @@ export const rebuildPluginChain = async (
   trackId: number,
   plugins: Plugin[]
 ): Promise<void> => {
+  console.log("inside rebuildPluginChain!!");
   const allProcessors = await audioGraph.getTrackProcessors(trackId);
 
   for (const p of allProcessors) {
@@ -254,28 +285,50 @@ export const rebuildPluginChain = async (
       def.path
     );
 
-    const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
-    const newProc = updatedProcessors
-      .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
-      .reverse()
-      .find(p => p.name === def.name);
+      let newProc;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
+
+        newProc = updatedProcessors
+          .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
+          .reverse()
+          .find(p => p.name === def.name);
+
+        if (newProc) break;
+
+        console.log(`[🕐 WaitForProcessor] ${def.name} not found on attempt ${attempt + 1}`);
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      if (!newProc) {
+        console.warn(`[Rebuild] Failed to find processor '${def.name}' after 10 attempts`);
+        return;
+      }
 
       if (newProc) {
         const track = pluginTracks.value.find(t => t.id === trackId);
-        if (track) {
-          const slotIndex = track.plugins.findIndex(p => p.id === plugin.id);
-          if (slotIndex !== -1) {
-            const updatedPlugin: Plugin = {
-              ...track.plugins[slotIndex],
-              processorId: newProc.id
-            };
-            track.plugins[slotIndex] = updatedPlugin;
-            selectPluginOnTrack(trackId, updatedPlugin);
-            console.log(`[Rebuild] Set processorId ${newProc.id} for plugin '${plugin.id}' in track ${trackId}`);
-          } else {
-            console.warn(`[Rebuild] Could not find plugin '${plugin.id}' in track ${trackId} to update processorId`);
-          }
-        }
+        if (!track) return;
+      
+        const slotIndex = track.plugins.findIndex(p => p.id === plugin.id);
+        if (slotIndex === -1) return;
+      
+        // ✅ assign the processorId directly to the tracked plugin
+        track.plugins[slotIndex].processorId = newProc.id;
+      
+        // ✅ force Vue to detect the change
+        track.plugins = [...track.plugins];
+      
+        // ✅ pass the updated, reactive plugin object
+        const livePlugin = track.plugins[slotIndex];
+        console.log('[Before selectPluginOnTrack]', {
+          plugin: track.plugins[slotIndex],
+          id: track.plugins[slotIndex].id,
+          processorId: track.plugins[slotIndex].processorId
+        });
+        selectPluginOnTrack(trackId, livePlugin);
+      
+        console.log(`[Rebuild] Set processorId ${newProc.id} for plugin '${plugin.id}' in track ${trackId}`);
       }
   }
 

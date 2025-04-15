@@ -10,11 +10,6 @@
         :key="plugin.processorId"
         class="plugin-container"
       >
-      <div>
-        <pre>{{ plugin }}</pre>
-        <pre>Component: {{ getPluginComponent(plugin.id) }}</pre>
-        <pre>processor-id: {{ plugin.processorId }}</pre>
-      </div>
         <PluginWithBackend
           v-if="plugin.processorId != null && getPluginComponent(plugin.id)"
           :component="getPluginComponent(plugin.id)!"
@@ -26,14 +21,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
-import PluginWithBackend from '@/components/PluginWithBackend.vue';
+import { computed, watch } from "vue";
+import PluginWithBackend from "@/components/PluginWithBackend.vue";
 import {
   pluginTracks,
   getPluginComponent,
   getActivePluginsForTrack,
-  currentTrackIndex
-} from '@/backend/tonalflexBackend';
+  currentTrackIndex,
+} from "@/backend/tonalflexBackend";
 
 const activePlugins = computed(() => {
   const track = pluginTracks.value[currentTrackIndex.value];
@@ -43,19 +38,22 @@ const activePlugins = computed(() => {
   console.log("ACTIVE UI MAP:", getActivePluginsForTrack(track.id));
 
   // Fallback test: just return all that have a processorId
-  return track.plugins.filter(p => p.processorId != null);
+  return track.plugins.filter((p) => p.processorId != null);
 });
 
 const handleClose = () => {
-  emit('close-plugin-ui');
+  emit("close-plugin-ui");
 };
 
 const emit = defineEmits<{
-  (e: 'close-plugin-ui'): void;
+  (e: "close-plugin-ui"): void;
 }>();
 
 watch(activePlugins, (val) => {
-  console.log('[PluginUI] activePlugins changed:', val.map(p => p.processorId));
+  console.log(
+    "[PluginUI] activePlugins changed:",
+    val.map((p) => p.processorId)
+  );
 });
 </script>
 

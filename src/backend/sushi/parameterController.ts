@@ -1,5 +1,4 @@
 import {
-  ParameterController,
   TrackIdentifier,
   ProcessorIdentifier,
   ParameterIdRequest,
@@ -93,6 +92,7 @@ class SushiParameterController {
       parameter: ParameterIdentifier.create({ processorId, parameterId }),
       value,
     });
+    console.log('[Sushi RPC] SET', { processorId, parameterId, value });
     await this.client.setParameterValue(request);
   }
 

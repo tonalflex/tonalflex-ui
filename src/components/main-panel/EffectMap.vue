@@ -153,10 +153,15 @@ const emit = defineEmits<{
 
 const handlePluginClick = (pluginId: string) => {
   const track = visibleTracks.value[currentTrackIndex.value];
-  selectPluginOnTrack(track.id, pluginId);
-  emit('update-selected-view', 'pluginUI');
-};
+  const plugin = track.plugins.find(p => p.id === pluginId);
 
+  if (plugin) {
+    selectPluginOnTrack(track.id, plugin);
+    emit('update-selected-view', 'pluginUI');
+  } else {
+    console.warn(`[handlePluginClick] Plugin with ID '${pluginId}' not found on track ${track.id}`);
+  }
+};
 const openPluginSelectionForSlot = (index: number) => {
   selectedSlotIndex.value = index;
   pluginOverlayVisible.value = true;

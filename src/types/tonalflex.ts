@@ -29,4 +29,5 @@ export interface PluginMeta {
   description: string;
   isSystem: boolean;
   component?: Component;
+  parameters?: Record<string, string>;
 }
