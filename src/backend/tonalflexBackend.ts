@@ -34,18 +34,31 @@ export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
+const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg', {
+  as: 'url',
+  eager: true
+}) as Record<string, string>;
+
+const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json', {
+  as: 'raw',
+  eager: true
+}) as Record<string, string>;
+
 export const loadAvailablePlugins = async () => {
   const plugins: PluginMeta[] = [];
 
   for (const path in uiModules) {
     try {
       const basePath = path.replace('/plugin-ui.es.js', '');
+      const metaPath = `${basePath}/metadata.json`;
+      const logoPath = `${basePath}/logo.svg`;
 
-      const [module, metadata, image] = await Promise.all([
-        uiModules[path](),
-        fetch(`${basePath}/metadata.json`).then(res => res.json()).catch(() => ({})),
-        fetch(`${basePath}/logo.svg`).then(res => res.ok ? `${basePath}/logo.svg` : '/tonalflex.svg').catch(() => '/tonalflex.svg')
-      ]);
+      const module = await uiModules[path]();
+
+      const metadataRaw = metadatas[metaPath];
+      const metadata = metadataRaw ? JSON.parse(metadataRaw) : {};
+
+      const image = logoSvgs[logoPath] || '/tonalflex.svg';
 
       console.log('[PluginLoader] metadata for', path, metadata);
 
