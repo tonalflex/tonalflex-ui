@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
+import Dashboard from '@/views/AppDashboard.vue'
 </script>
 
 <template>
   <div id="app">
-    <router-view />
+    <Dashboard />
   </div>
 </template>
 
@@ -17,6 +17,6 @@ import { RouterView } from 'vue-router';
   height: 100vh;
   margin: 0;
   padding: 0;
-  background-color: #131313
+  background-color: #131313;
 }
 </style>
