@@ -146,10 +146,14 @@ const fetchSystemInfo = async () => {
   const audioGraphCtrl = new audiooGraphController(baseUrl);
   const parameterCtrl = new parameterController(baseUrl);
 
-    console.log("Fetching Sushi System Info...");
+  console.log("Fetching Sushi System Info...");
 
-    const processorId = 28; // your plugin's processor ID
-  const testValue = 0.29;
+  const tracks = await audioGraphCtrl.getAllTracks();
+  console.log("tracks: ", tracks);
+
+  const processorId = 12; // your plugin's processor ID
+
+  const testValue = 0.86;
 
   // Step 1: Fetch all parameters for the processor
   const paramList = await parameterCtrl.getProcessorParameters(processorId);
@@ -159,6 +163,7 @@ const fetchSystemInfo = async () => {
     console.warn("❌ No parameters found for processor", processorId);
     return;
   }
+
 
   const parameterId = firstParam.id;
   const name = firstParam.name;
@@ -179,6 +184,7 @@ const fetchSystemInfo = async () => {
   } else {
     console.warn("❌ Parameter did not stick — Sushi ignored or reset it.");
   }
+
     //const version = await systemController.getSushiVersion();
     //console.log('Sushi Version:', version);
 
@@ -197,16 +203,14 @@ const fetchSystemInfo = async () => {
     //const outputChan = await audioRoutingCtrl.getAllOutputConnections();
     //console.log("input:", outputChan);
 
+    
+    //const processes = await audioGraphCtrl.getAllProcessors();
+    //console.log("processes: ", processes);
+
+    //const param = await parameterCtrl.getProcessorParameters(28);
+    //console.log("parameter: ", param);
+
     /*
-    const processes = await audioGraphCtrl.getAllProcessors();
-    console.log("processes: ", processes);
-
-    const tracks = await audioGraphCtrl.getAllTracks();
-    console.log("tracks: ", tracks);
-
-    const param = await parameterCtrl.getProcessorParameters(28);
-    console.log("parameter: ", param);
-
     const paramValue = await parameterCtrl.getParameterValue({
       processorId: 28, // the Sushi processor instance
       parameterId: 1974136700, // the param ID inside that processor

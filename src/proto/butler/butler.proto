@@ -2,13 +2,32 @@ syntax = "proto3";
 
 package butler;
 
-service SessionService {
+// --- Session Service ---
+service Session {
+  rpc SaveSnapshot (SaveSnapshotRequest) returns (SaveSnapshotResponse);
+  rpc LoadSnapshot (LoadSnapshotRequest) returns (LoadSnapshotResponse);
   rpc SaveSession (SaveSessionRequest) returns (SaveSessionResponse);
   rpc LoadSession (LoadSessionRequest) returns (LoadSessionResponse);
   rpc ListSessions (ListSessionsRequest) returns (ListSessionsResponse);
   rpc DeleteSession (DeleteSessionRequest) returns (DeleteSessionResponse);
-  rpc SaveRuntimeSnapshot (SaveSessionRequest) returns (SaveSessionResponse);
-  rpc LoadRuntimeSnapshot (LoadSessionRequest) returns (LoadSessionResponse);
+  rpc RenameSession (RenameSessionRequest) returns (RenameSessionResponse);
+
+}
+
+message SaveSnapshotRequest {
+  string json_data = 1;
+}
+
+message SaveSnapshotResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message LoadSnapshotRequest {}
+
+message LoadSnapshotResponse {
+  string json_data = 1;
+  bool found = 2;
 }
 
 message SaveSessionRequest {
@@ -41,6 +60,115 @@ message DeleteSessionRequest {
 }
 
 message DeleteSessionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RenameSessionRequest {
+  string old_name = 1;
+  string new_name = 2;
+}
+
+message RenameSessionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- Wifi Service ---
+service Wifi {
+  rpc ListAvailableNetworks (Empty) returns (AvailableNetworksResponse);
+  rpc ConnectToNetwork (WifiCredentials) returns (WifiConnectResponse);
+}
+
+message Empty {}
+
+message AvailableNetworksResponse {
+  repeated string ssids = 1;
+}
+
+message WifiCredentials {
+  string ssid = 1;
+  string password = 2;
+}
+
+message WifiConnectResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- MIDI Service ---
+service Midi {
+  rpc ListDevices (Empty) returns (MidiDevicesResponse);
+  rpc ConnectDevice (MidiConnectRequest) returns (MidiConnectResponse);
+}
+
+message MidiDevice {
+  int32 client_id = 1;
+  int32 port_id = 2;
+  string name = 3;
+}
+
+message MidiDevicesResponse {
+  repeated MidiDevice devices = 1;
+}
+
+message MidiConnectRequest {
+  int32 controller_client = 1;
+  int32 controller_port = 2;
+  int32 sushi_client = 3;
+  int32 sushi_port = 4;
+}
+
+message MidiConnectResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- File Service ---
+service File {
+  rpc ListFiles (ListFilesRequest) returns (ListFilesResponse);
+  rpc UploadFile (UploadFileRequest) returns (FileOperationResponse);
+  rpc DownloadFile (DownloadFileRequest) returns (DownloadFileResponse);
+  rpc DeleteFile (DeleteFileRequest) returns (FileOperationResponse);
+  rpc RenameFile (RenameFileRequest) returns (FileOperationResponse);
+}
+
+message ListFilesRequest {
+  string folder = 1; // "NAM" or "IR"
+}
+
+message ListFilesResponse {
+  repeated string filenames = 1;
+}
+
+message UploadFileRequest {
+  string folder = 1;
+  string filename = 2;
+  bytes content = 3;
+}
+
+message DownloadFileRequest {
+  string folder = 1;
+  string filename = 2;
+}
+
+message DownloadFileResponse {
+  bytes content = 1;
+  bool found = 2;
+}
+
+message DeleteFileRequest {
+  string folder = 1;
+  string filename = 2;
+}
+
+message RenameFileRequest {
+  string folder = 1;
+  string old_name = 2;
+  string new_name = 3;
+}
+
+message FileOperationResponse {
   bool success = 1;
   string message = 2;
 }

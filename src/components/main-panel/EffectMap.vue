@@ -63,8 +63,11 @@
               draggable="true"
             >
                 <div class="btn-glass-border">
-                  <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
-                  <OhVueIcon v-else name="co-plus" class="btn-icon" />
+                  <div class="plugin-content">
+                    <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
+                    <div v-if="plugin.id" class="plugin-name">{{ getPluginName(plugin.id) }}</div>
+                    <OhVueIcon v-else name="co-plus" class="btn-icon" />
+                  </div>
                 </div>
               </button>
               <div class="line"></div>
@@ -131,6 +134,7 @@ import {
   updatePluginSlot,
   rebuildPluginChain,
   getPluginImage,
+  getPluginName,
   selectPluginOnTrack,
 } from '@/backend/tonalflexBackend';
 
@@ -361,6 +365,15 @@ const openTrackSettings = () => {
   box-shadow: 0 0 15px rgba(124, 223, 124, 0.07);
 }
 
+.plugin-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
 .box-btn.selected {
   box-shadow: 0px 0px 5px rgba(14, 190, 14, 0.4);
   background-color: rgba(51, 255, 0, 0.05);
@@ -381,6 +394,18 @@ const openTrackSettings = () => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.plugin-name {
+  margin-top: 6px;
+  font-size: 1.5rem;
+  color: rgb(241, 241, 241);
+  text-shadow: 0 0 3px rgba(0, 255, 0, 0.4);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plugin-selection-overlay {

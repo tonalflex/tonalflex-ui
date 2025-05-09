@@ -98,5 +98,10 @@ watch(activePlugins, (val) => {
 }
 
 .plugin-container {
+  width: 100%;
+  max-width: 450px;
+  height: 100%;
+  max-height: 600px;
+  overflow: hidden;
 }
 </style>

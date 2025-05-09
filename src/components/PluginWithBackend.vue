@@ -3,7 +3,7 @@ import { defineComponent, defineProps, h, provide, ref, onMounted } from "vue";
 import type { Component } from "vue";
 import SushiParameterController from "@/backend/sushi/parameterController";
 import { SushiPluginBackend } from "@/backend/sushiPluginBackend";
-import { getPluginMetaByComponent } from "@/backend/tonalflexBackend";
+import { getPluginMetaByComponent, listFilesWrapper } from "@/backend/tonalflexBackend";
 
 const props = defineProps<{
   component: Component;
@@ -17,7 +17,7 @@ const pluginMeta = getPluginMetaByComponent(props.component);
 const backend = new SushiPluginBackend(
   controller,
   props.processorId,
-  pluginMeta?.parameters ?? {}
+  listFilesWrapper
 );
 
 const isReady = ref(false);
