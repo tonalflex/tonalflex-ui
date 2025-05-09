@@ -1,24 +1,53 @@
 // src/stores/butlerStore.ts
 import {
-  SessionServiceClient,
+  SessionClient,
+  FileClient,
+  MidiClient,
+  WifiClient,
 } from '@/proto/butler/butler.client';
 import {
+  SaveSnapshotRequest,
+  LoadSnapshotRequest,
   SaveSessionRequest,
   LoadSessionRequest,
   ListSessionsRequest,
   DeleteSessionRequest,
+  RenameSessionRequest,
+  UploadFileRequest,
+  ListFilesRequest,
+  DownloadFileRequest,
+  DeleteFileRequest,
+  RenameFileRequest,
+  MidiConnectRequest,
+  WifiCredentials,
+  Empty,
+} from '@/proto/butler/butler';
+import type {
+  SaveSnapshotResponse,
+  LoadSnapshotResponse,
   SaveSessionResponse,
   LoadSessionResponse,
   ListSessionsResponse,
   DeleteSessionResponse,
-} from '@/proto/butler/butler';
+  RenameSessionResponse,
+  FileOperationResponse,
+  ListFilesResponse,
+  DownloadFileResponse,
+  MidiDevicesResponse,
+  MidiConnectResponse,
+  WifiConnectResponse,
+  AvailableNetworksResponse,
+} from "@/proto/butler/butler";
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import type { RpcInterceptor, RpcOptions, UnaryCall, MethodInfo } from '@protobuf-ts/runtime-rpc';
 import { RpcError } from '@protobuf-ts/runtime-rpc';
 
 class ButlerController {
   private transport: GrpcWebFetchTransport;
-  private client: SessionServiceClient;
+  private session: SessionClient;
+  private file: FileClient;
+  private midi: MidiClient;
+  private wifi: WifiClient;
 
   constructor(baseUrl: string) {
     const interceptor: RpcInterceptor = {
@@ -44,51 +73,116 @@ class ButlerController {
       interceptors: [interceptor],
     });
 
-    this.client = new SessionServiceClient(this.transport);
+    this.session = new SessionClient(this.transport);
+    this.file = new FileClient(this.transport);
+    this.midi = new MidiClient(this.transport);
+    this.wifi = new WifiClient(this.transport);
+  }
+
+  async saveSnapshot(jsonData: string): Promise<SaveSnapshotResponse> {
+    const request = SaveSnapshotRequest.create({ jsonData });
+    const { response } = await this.session.saveSnapshot(request);
+    return response;
+  }
+
+  async loadSnapshot(): Promise<LoadSnapshotResponse> {
+    const request = LoadSnapshotRequest.create();
+    const { response } = await this.session.loadSnapshot(request);
+    return response;
   }
 
   async saveSession(name: string, jsonData: string): Promise<SaveSessionResponse> {
     const request = SaveSessionRequest.create({ name, jsonData });
-    const { response } = await this.client.saveSession(request);
+    const { response } = await this.session.saveSession(request);
     return response;
   }
 
   async loadSession(name: string): Promise<LoadSessionResponse> {
     const request = LoadSessionRequest.create({ name });
-    const { response } = await this.client.loadSession(request);
+    const { response } = await this.session.loadSession(request);
     return response;
   }
 
   async listSessions(): Promise<ListSessionsResponse> {
-    const { response } = await this.client.listSessions(ListSessionsRequest.create());
+    const { response } = await this.session.listSessions(ListSessionsRequest.create());
     return response;
   }
 
   async deleteSession(name: string): Promise<DeleteSessionResponse> {
     const request = DeleteSessionRequest.create({ name });
-    const { response } = await this.client.deleteSession(request);
+    const { response } = await this.session.deleteSession(request);
     return response;
   }
 
-  async saveSnapshot(jsonData: string): Promise<void> {
-    try {
-      const request = SaveSessionRequest.create({ name: '__snapshot__', jsonData });
-      await this.client.saveSession(request);
-      console.log('[Butler] Snapshot saved.');
-    } catch (err) {
-      this.handleError(err, 'saving snapshot');
-    }
+  async renameSession(oldName: string, newName: string): Promise<RenameSessionResponse> {
+    const request = RenameSessionRequest.create({ oldName, newName });
+    const { response } = await this.session.renameSession(request);
+    return response;
   }
 
-  async loadSnapshot(): Promise<string | null> {
-    try {
-      const request = LoadSessionRequest.create({ name: '__snapshot__' });
-      const { response } = await this.client.loadSession(request);
-      return response.jsonData || null;
-    } catch (err) {
-      this.handleError(err, 'loading snapshot');
-      return null;
-    }
+  // FILE
+  async listFiles(folder: string): Promise<ListFilesResponse> {
+    const request = ListFilesRequest.create({ folder });
+    const { response } = await this.file.listFiles(request);
+    return response;
+  }
+
+  async uploadFile(folder: string, filename: string, content: Uint8Array): Promise<FileOperationResponse> {
+    const request = UploadFileRequest.create({ folder, filename, content });
+    const { response } = await this.file.uploadFile(request);
+    return response;
+  }
+
+  async downloadFile(folder: string, filename: string): Promise<DownloadFileResponse> {
+    const request = DownloadFileRequest.create({ folder, filename });
+    const { response } = await this.file.downloadFile(request);
+    return response;
+  }
+
+  async deleteFile(folder: string, filename: string): Promise<FileOperationResponse> {
+    const request = DeleteFileRequest.create({ folder, filename });
+    const { response } = await this.file.deleteFile(request);
+    return response;
+  }
+
+  async renameFile(folder: string, oldName: string, newName: string): Promise<FileOperationResponse> {
+    const request = RenameFileRequest.create({ folder, oldName, newName });
+    const { response } = await this.file.renameFile(request);
+    return response;
+  }
+
+  // MIDI
+  async listMidiDevices(): Promise<MidiDevicesResponse> {
+    const { response } = await this.midi.listDevices(Empty.create());
+    return response;
+  }
+
+  async connectMidiDevice(
+    controllerClient: number,
+    controllerPort: number,
+    sushiClient: number,
+    sushiPort: number
+  ): Promise<MidiConnectResponse> {
+    const request = MidiConnectRequest.create({
+      controllerClient,
+      controllerPort,
+      sushiClient,
+      sushiPort,
+    });
+    const { response } = await this.midi.connectDevice(request);
+    return response;
+  }
+
+  // WIFI
+  async listWifiNetworks(): Promise<AvailableNetworksResponse> {
+    const { response } = await this.wifi.listAvailableNetworks(Empty.create());
+    return response;
+  }
+
+  async connectToWifi(ssid: string, password: string): Promise<WifiConnectResponse> {
+    const request = WifiCredentials.create({ ssid, password });
+    const { response } = await this.wifi.connectToNetwork(request);
+    return response;
   }
 
   private handleError(err: unknown, context: string): void {

@@ -11,7 +11,6 @@ import { ensureProcessorSubscription, removeProcessorSubscription } from '@/back
 import type { ParameterIdentifier, ParameterInfo } from '@/proto/sushi/sushi_rpc';
 
 export class SushiPluginBackend implements IAudioBackend {
-  private paramCache: Record<string, ParameterIdentifier> = {};
   private processorParams: ParameterInfo[] = [];
   private subscriptionEntry!: Awaited<ReturnType<typeof ensureProcessorSubscription>>;
   public ready: Promise<void>;
@@ -19,7 +18,7 @@ export class SushiPluginBackend implements IAudioBackend {
   constructor(
     private controller: ParameterController,
     private processorId: number,
-    private uiParamMap: Record<string, string>
+    private listFiles: (folder: string) => Promise<string[]>
   ) {
     this.ready = this.initialize();
   }
@@ -27,34 +26,39 @@ export class SushiPluginBackend implements IAudioBackend {
   private async initialize() {
     this.subscriptionEntry = await ensureProcessorSubscription(this.processorId);
     this.processorParams = this.subscriptionEntry.paramInfo;
-    this.paramCache = this.subscriptionEntry.paramMap;
   }
 
   getPluginFunction(name: string): (...args: unknown[]) => Promise<unknown> {
-    return async () => {
-      console.warn(`Plugin function '${name}' not implemented for processor ${this.processorId}`);
-      throw new Error(`Function '${name}' not supported`);
-    };
+    switch (name) {
+      case "getModelChoices":
+        return async () => this.listFiles("/home/mind/NAM");
+      case "getIRChoices":
+        return async () => this.listFiles("/home/mind/IR");
+      default:
+        return async () => {
+          console.warn(`Plugin function '${name}' not implemented for processor ${this.processorId}`);
+          throw new Error(`Function '${name}' not supported`);
+        };
+    }
   }
 
-  getParameterState<T extends ParameterType>(uiName: string, type: T): ParameterMap[T] {
-    const sushiParamName = this.uiParamMap[uiName] ?? uiName;
-    if (!sushiParamName) throw new Error(`UI Parameter '${uiName}' has no mapped Sushi parameter.`);
+  getParameterState<T extends ParameterType>(paramName: string, type: T): ParameterMap[T] {
+    const param = this.processorParams.find(p => p.name === paramName);
+    if (!param) throw new Error(`Parameter '${paramName}' not found on processor ${this.processorId}`);
 
-    const id = this.paramCache[sushiParamName];
-    if (!id) throw new Error(`Sushi parameter '${sushiParamName}' not found in paramCache.`);
-
-    const paramInfo = this.processorParams.find(p => p.id === id.parameterId);
-    if (!paramInfo) throw new Error(`ParameterInfo missing for ID: ${id.parameterId}`);
+    const id: ParameterIdentifier = {
+      processorId: this.processorId,
+      parameterId: param.id,
+    };
 
     const config = sushiMap[type];
     if (!config) throw new Error(`Unknown parameter type: '${type}'`);
 
-    if (type === 'comboBox' && paramInfo.maxDomainValue == null) {
-      throw new Error(`Parameter '${sushiParamName}' is not a valid comboBox`);
+    if (type === 'comboBox' && param.maxDomainValue == null) {
+      throw new Error(`Parameter '${paramName}' is not a valid comboBox`);
     }
-    if (type === 'toggle' && (paramInfo.minDomainValue !== 0 || paramInfo.maxDomainValue !== 1)) {
-      throw new Error(`Parameter '${sushiParamName}' is not a valid toggle`);
+    if (type === 'toggle' && (param.minDomainValue !== 0 || param.maxDomainValue !== 1)) {
+      throw new Error(`Parameter '${paramName}' is not a valid toggle`);
     }
 
     return config.adapt(id, this.controller, this.subscriptionEntry, this.processorParams) as ParameterMap[T];

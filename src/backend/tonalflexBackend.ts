@@ -1,6 +1,7 @@
 import { ref, computed, markRaw } from 'vue';
 import type { Component } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
+import SushiTransportController from "@/backend/sushi/transportController";
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
@@ -8,6 +9,7 @@ import SushiParameterController from './sushi/parameterController';
 
 export const BASE_URL = 'http://elk-pi.local:8081';
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
+const transportController = new SushiTransportController(BASE_URL + "/sushi");
 const parameterController = new SushiParameterController(BASE_URL + "/sushi");
 const butler = new ButlerController(BASE_URL + "/butler");
 
@@ -34,13 +36,13 @@ export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
-const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg', {
-  as: 'url',
+const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg?url', {
+  import: 'default',
   eager: true
 }) as Record<string, string>;
 
-const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json', {
-  as: 'raw',
+const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json?raw', {
+  import: 'default',
   eager: true
 }) as Record<string, string>;
 
@@ -171,6 +173,11 @@ export const getPluginImage = (pluginId: string): string => {
   return match?.image ?? '';
 };
 
+export function getPluginName(pluginId: string): string {
+  const plugin = userPluginList.value.find(p => p.id === pluginId);
+  return plugin?.name ?? pluginId;
+}
+
 export const getPluginComponent = (pluginId: string | null) => {
   return userPluginList.value.find(p => p.id === pluginId)?.component
     ?? systemPluginList.value.find(p => p.id === pluginId)?.component
@@ -235,6 +242,26 @@ export const initializeTonalflexSession = async (): Promise<void> => {
         plugins
       };
     });
+
+    // Hydrate processorId for each plugin
+    for (const track of pluginTracks.value) {
+      const processors = await audioGraph.getTrackProcessors(track.id);
+
+      for (const plugin of track.plugins) {
+        if (!plugin.id || internalPluginIds.includes(plugin.id)) continue;
+
+        const def = userPluginList.value.find(p => p.id === plugin.id)
+                ?? systemPluginList.value.find(p => p.id === plugin.id);
+
+        const matching = processors.find(p => p.name === def?.name);
+        if (matching) {
+          plugin.processorId = matching.id;
+          selectPluginOnTrack(track.id, plugin);
+        } else {
+          console.warn(`[SessionRestore] Failed to match processor for plugin '${plugin.id}'`);
+        }
+      }
+    }
 
   } else {
     console.warn('[Init] No valid snapshot or misalignment — resetting session');
@@ -489,12 +516,17 @@ const saveSessionSnapshot = async (): Promise<void> => {
 };
 
 export const loadSessionSnapshot = async (): Promise<{ tracks: Track[] } | null> => {
+  const res = await butler.loadSnapshot();
+
+  if (!res.found) {
+    console.log('[Session] No snapshot available.');
+    return null;
+  }
+
   try {
-    const raw = await butler.loadSnapshot();
-    if (!raw) return null;
-    return JSON.parse(raw);
+    return JSON.parse(res.jsonData);
   } catch (e) {
-    console.warn('[Session] Failed to parse snapshot JSON:', e);
+    console.warn('[Session] Snapshot JSON was found but failed to parse:', e);
     return null;
   }
 };
@@ -520,3 +552,38 @@ export const listSavedSessions = async (): Promise<string[]> => {
 export const deleteSavedSession = async (name: string): Promise<void> => {
   await butler.deleteSession(name);
 };
+
+// BPM getter and setter
+export const getCurrentBpm = async (): Promise<number> => {
+  try {
+    const bpm = await transportController.getTempo();
+    console.log(`[BPM] Current tempo: ${bpm}`);
+    return bpm;
+  } catch (err) {
+    console.error("[BPM] Failed to get tempo", err);
+    return 120; // fallback/default
+  }
+};
+
+export const setCurrentBpm = async (newBpm: number): Promise<void> => {
+  try {
+    await transportController.setTempo(newBpm);
+    console.log(`[BPM] Tempo updated to ${newBpm}`);
+  } catch (err) {
+    console.error("[BPM] Failed to set tempo", err);
+  }
+};
+
+// fetch NAM and IR file Names
+export async function listFilesWrapper(folder: string): Promise<string[]> {
+  const result = await butler.listFiles(folder);
+  return result.filenames ?? [];
+}
+
+// Import files to device
+
+export async function uploadToFolder(folder: string, file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  await butler.uploadFile(folder, file.name, bytes);
+}
