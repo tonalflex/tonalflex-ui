@@ -36,12 +36,14 @@ export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
-const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg?url', {
+const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg', {
+  query: '?url',
   import: 'default',
   eager: true
 }) as Record<string, string>;
 
-const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json?raw', {
+const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json', {
+  query: '?raw',
   import: 'default',
   eager: true
 }) as Record<string, string>;
@@ -580,10 +582,16 @@ export async function listFilesWrapper(folder: string): Promise<string[]> {
   return result.filenames ?? [];
 }
 
-// Import files to device
-
+// Upload files to device
 export async function uploadToFolder(folder: string, file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   await butler.uploadFile(folder, file.name, bytes);
+}
+
+// download files from device
+export async function downloadFromFolder(folder: string, file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  await butler.downloadFile(folder, file.name);
 }

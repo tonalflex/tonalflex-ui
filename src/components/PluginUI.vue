@@ -67,6 +67,7 @@ watch(activePlugins, (val) => {
   display: flex;
   flex-direction: column;
   color: white;
+  overflow-y: auto;
 }
 
 .plugin-ui-bar {
@@ -88,6 +89,8 @@ watch(activePlugins, (val) => {
 
 .plugin-ui-grid {
   flex-grow: 1;
+  width:100%;
+  height: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 2rem;
@@ -100,8 +103,6 @@ watch(activePlugins, (val) => {
 .plugin-container {
   width: 100%;
   max-width: 450px;
-  height: 100%;
   max-height: 600px;
-  overflow: hidden;
 }
 </style>
