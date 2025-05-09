@@ -1,4 +1,6 @@
+
 <template>
+<!-- 
     <div class="overlay">
       <div class="button-section">
         <button class="btn" @click="$emit('switch', 'import')"><importIcon class="btn-icon" /></button>
@@ -16,9 +18,11 @@
         />
       </div>
     </div>
+   -->   
   </template>
-    
+
   <script setup lang="ts">
+  /*
   import { ref, onMounted } from 'vue';
   import { listFilesWrapper } from '@/backend/tonalflexBackend';
   import FileExplorer from '@/components/modules/FileExplorer.vue';
@@ -62,9 +66,11 @@
   onMounted(() => {
     selectFolder(currentFolder.value);
   });
+  */
   </script>
     
   <style scoped>
+  /*
       .overlay{
           width: 100%;
           height: 100%;
@@ -105,5 +111,6 @@
           display: flex;
           justify-content: center;
       }
-  </style>
+*/
+</style>
     

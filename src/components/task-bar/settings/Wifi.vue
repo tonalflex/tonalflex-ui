@@ -1,4 +1,5 @@
 <template>
+<!--
     <div class="overlay">
         <div class="button-section">
             <button class="btn" @click="$emit('switch', 'import')"><importIcon class="btn-icon"/></button>
@@ -10,9 +11,11 @@
             <FileExplorer mode="import" @file-selected="handleImportFile" />
         </div>
     </div>
+-->
 </template>
   
 <script setup lang="ts">
+/*
     import FileExplorer from '@/components/modules/FileExplorer.vue';
     import close from '@/components/icons/close.vue';
     import exportIcon from '@/components/icons/exportIcon.vue';
@@ -24,9 +27,11 @@
         (e: 'close'): void;
         (e: 'switch', target: string): void;
     }>();
+*/
 </script>
   
 <style scoped>
+/*
     .overlay{
         width: 100%;
         height: 100%;
@@ -67,5 +72,6 @@
         display: flex;
         justify-content: center;
     }
+*/
 </style>
   

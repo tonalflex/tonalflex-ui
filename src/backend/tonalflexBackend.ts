@@ -582,10 +582,16 @@ export async function listFilesWrapper(folder: string): Promise<string[]> {
   return result.filenames ?? [];
 }
 
-// Import files to device
-
+// Upload files to device
 export async function uploadToFolder(folder: string, file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
   await butler.uploadFile(folder, file.name, bytes);
+}
+
+// download files from device
+export async function downloadFromFolder(folder: string, file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  await butler.downloadFile(folder, file.name);
 }
