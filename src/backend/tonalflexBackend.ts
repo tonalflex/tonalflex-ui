@@ -36,12 +36,14 @@ export const activePluginUIMap = ref<Record<number, Plugin[]>>({});
 const uiModules: Record<string, () => Promise<PluginModule>> =
   import.meta.glob('../../node_modules/@tonalflex/*/dist/plugin-ui.es.js') as Record<string, () => Promise<PluginModule>>;
 
-const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg?url', {
+const logoSvgs = import.meta.glob('../../node_modules/@tonalflex/*/dist/logo.svg', {
+  query: '?url',
   import: 'default',
   eager: true
 }) as Record<string, string>;
 
-const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json?raw', {
+const metadatas = import.meta.glob('../../node_modules/@tonalflex/*/dist/metadata.json', {
+  query: '?raw',
   import: 'default',
   eager: true
 }) as Record<string, string>;
