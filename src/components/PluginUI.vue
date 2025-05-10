@@ -76,6 +76,7 @@ watch(activePlugins, (val) => {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  background-color:blue;
   padding: 0 10px;
 }
 
@@ -88,21 +89,20 @@ watch(activePlugins, (val) => {
 }
 
 .plugin-ui-grid {
-  flex-grow: 1;
   width:100%;
   height: 100%;
   display: flex;
   flex-wrap: wrap;
-  gap: 2rem;
-  padding: 1rem;
   justify-content: center;
-  align-items: flex-start;
   overflow-y: auto;
 }
 
 .plugin-container {
   width: 100%;
   max-width: 450px;
-  max-height: 600px;
+  height: 100%;
+  overflow-y: auto;
+  border: 2px solid white;
+  border-radius: 12px;
 }
 </style>
