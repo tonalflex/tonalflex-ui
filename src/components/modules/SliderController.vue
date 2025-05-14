@@ -47,7 +47,7 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: number): void;
 }>();
 
-const frameHeight = 43; // index 1 = height
+const frameHeight = 100; // index 1 = height
 
 const currentFrame = ref(0);
 
@@ -100,16 +100,26 @@ function onInput(e: Event) {
 <style scoped>
 .juce-slider {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
 }
 
 /* Knob div */
 .knob {
-  width: 43px; 
-  height: 43px; /* one frame size */
+  width: 100px; 
+  height: 100px; /* one frame size */
   background-repeat: no-repeat;
   background-size: 100% auto;
   cursor: grab;
+}
+
+.label-text{
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(231, 231, 231, 0.8);
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.9);
+  text-align: center;
+  letter-spacing: 0.5px;
+  text-transform: uppercase
 }
 </style>

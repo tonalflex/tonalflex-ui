@@ -278,8 +278,8 @@ export const initializeTonalflexSession = async (): Promise<void> => {
 
   const sushiTracks = await audioGraph.getAllTracks();
 
-  sushiTrackRoles.pre.value = sushiTracks.find(t => t.name === 'Track_Pre')?.id ?? null;
-  sushiTrackRoles.post.value = sushiTracks.find(t => t.name === 'Track_Post')?.id ?? null;
+  sushiTrackRoles.pre.value = sushiTracks.find(t => t.name === 'pre')?.id ?? null;
+  sushiTrackRoles.post.value = sushiTracks.find(t => t.name === 'post')?.id ?? null;
   sushiTrackRoles.user.value = sushiTracks
     .filter(t => /^Track[1-8]$/.test(t.name))
     .map(t => ({ id: t.id, name: t.name }));

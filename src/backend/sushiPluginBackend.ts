@@ -31,9 +31,21 @@ export class SushiPluginBackend implements IAudioBackend {
   getPluginFunction(name: string): (...args: unknown[]) => Promise<unknown> {
     switch (name) {
       case "getModelChoices":
-        return async () => this.listFiles("/home/mind/NAM");
+        return async () => {
+          const files = await this.listFiles("/home/mind/NAM");
+          return [
+            "Select model...",
+            ...files.filter(f => f.toLowerCase().endsWith(".nam"))
+          ];
+        };
       case "getIRChoices":
-        return async () => this.listFiles("/home/mind/IR");
+        return async () => {
+          const files = await this.listFiles("/home/mind/IR");
+          return [
+            "Select IR...",
+            ...files.filter(f => f.toLowerCase().endsWith(".wav"))
+          ];
+        };
       default:
         return async () => {
           console.warn(`Plugin function '${name}' not implemented for processor ${this.processorId}`);

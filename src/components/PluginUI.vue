@@ -1,22 +1,11 @@
 <template>
   <div class="plugin-ui-overlay">
     <div class="plugin-ui-bar">
-      <div class="track-control-section">
-        <div class="left-spacer"></div>
-        <div class="slider-section">
-          <SliderControl label="" v-model="inputGain" :knobImage="inputKnob" :frames="127" :range="[0, 1]"/>
-          <SliderControl label="" v-model="trackGain" :knobImage="gainKnob" :frames="127" :range="[0, 1]"/>
-          <SliderControl label="" v-model="trackPan" :knobImage="PanKnob" :frames="127" :range="[ -1, 1]"/>
-        </div>
-
-        <div class="button-section">
-          <button class="btn" @click="handleClose"><closeIcon class="btn-icon" /></button>
-        </div>
-      </div>
+      <button class="btn" @click="handleClose"><closeIcon class="btn-icon" /></button>
     </div>
 
     <div class="plugin-ui-grid">
-
+      <InputPlugin v-if="currentTrack" :track-id="currentTrack.id" />
       <div
         v-for="plugin in activePlugins"
         :key="plugin.processorId"
@@ -25,8 +14,8 @@
         <div class="plugin-controls">
           <div class="left-spacer"></div>
           <div class="plugin-label"><span>{{ getPluginName(plugin.id) }}</span></div>
-          <div class="delete-btn">
-            <deleteIcon  class="control-icon"/>
+          <div class="delete-btn" @click="handleDelete(plugin.instanceId)">
+            <deleteIcon class="control-icon"/>
           </div>
         </div>
         <div class="plugin-container">
@@ -49,20 +38,18 @@ import {
   getPluginComponent,
   getActivePluginsForTrack,
   currentTrackIndex,
+  currentTrack,
   sushiTrackRoles,
   getTrackGain,
   getTrackPan,
   setTrackGain,
   setTrackPan,
-  getTrackMute,
   getPluginName,
+  deletePluginFromChain
 } from "@/backend/tonalflexBackend";
-import SliderControl from "@/components/modules/SliderController.vue"
-import inputKnob from "@/assets/ST_knob_G_pan_48x48_127f_input.png"
-import gainKnob from "@/assets/ST_knob_G_pan_48x48_127_gain.png"
-import PanKnob from "@/assets/ST_knob_G_pan_48x48_127f.png"
 import deleteIcon from "@/components/icons/delete.vue";
 import closeIcon from '@/components/icons/close.vue';
+import InputPlugin from "@/components/modules/InputPlugin.vue";
 
 const inputGain = ref(1);
 const trackGain = ref(1);
@@ -92,6 +79,12 @@ const loadTrackSliders = async () => {
     trackGain.value = await getTrackGain(track.id);
     trackPan.value = await getTrackPan(track.id);
   }
+};
+
+const handleDelete = async (instanceId: string) => {
+  const track = pluginTracks.value[currentTrackIndex.value];
+  if (!track) return;
+  await deletePluginFromChain(track.id, instanceId);
 };
 
 onMounted(loadTrackSliders);
@@ -134,35 +127,8 @@ watch(activePlugins, (val) => {
 
 .plugin-ui-bar {
   width: 100%;
-  display:flex;
-  justify-content: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  float: right;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.track-control-section{
-  width: 100%;
-  height: 80px;
-  display: flex;
-  padding: 5px;
-  flex-direction: row;
-  gap: 20px;
-  background: linear-gradient(to bottom, #444, #222);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
-  user-select: none;
-}
-
-.slider-section{
-  width: 33%;
-  display: flex;
-  gap: 15px;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-}
-
-.button-section{
-  width: 33%;
 }
 
 .btn {

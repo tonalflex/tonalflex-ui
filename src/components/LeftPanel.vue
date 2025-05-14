@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { OhVueIcon, addIcons } from "oh-vue-icons";
 import {
   BiHeadphones,
@@ -80,6 +80,7 @@ import {
 } from "oh-vue-icons/icons";
 import TunerIcon from "@/components/icons/tuner.vue";
 import AmpIcon from "@/components/icons/amplifier-icon.vue";
+import { getTrackGain, setTrackGain, sushiTrackRoles } from "@/backend/tonalflexBackend";
 //import SystemController from '@/backend/sushi/systemController';
 //import audioRoutingController from '@/backend/sushi/audioRoutingController'
 import audiooGraphController from "@/backend/sushi/audioGraphController";
@@ -109,7 +110,23 @@ const emit = defineEmits<{
 
 // State
 const volume = ref(50);
-const masterVolume = ref(50);
+const masterVolume = ref(0);
+
+watch(masterVolume, (v) => {
+  const postId = sushiTrackRoles.post.value;
+  if (postId != null) {
+    const gain = v / 100; // normalize
+    setTrackGain(postId, gain);
+  }
+});
+
+onMounted(async () => {
+const postId = sushiTrackRoles.post.value;
+if (postId != null) {
+  const gain = await getTrackGain(postId);
+  masterVolume.value = Math.round(gain * 100);
+}
+});
 
 // Events
 const selectButton = (button: string) => {
