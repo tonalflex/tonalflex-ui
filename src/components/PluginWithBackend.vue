@@ -4,14 +4,14 @@ import type { Component } from "vue";
 import SushiParameterController from "@/backend/sushi/parameterController";
 import { SushiPluginBackend } from "@/backend/sushiPluginBackend";
 import { getPluginMetaByComponent, listFilesWrapper } from "@/backend/tonalflexBackend";
-
+import { BASE_URL } from "@/backend/baseUrl";
 const props = defineProps<{
   component: Component;
   processorId: number;
 }>();
 
 const controller = new SushiParameterController(
-  "http://elk-pi.local:8081/sushi"
+  BASE_URL + "/sushi"
 );
 const pluginMeta = getPluginMetaByComponent(props.component);
 const backend = new SushiPluginBackend(

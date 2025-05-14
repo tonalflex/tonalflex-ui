@@ -414,7 +414,7 @@ const openTrackSettings = () => {
   justify-content: center;
   align-items: center;
   top: 132px;
-  left: 80px;
+  left: 60px;
   width: calc(100vw - 80px);
   height: calc(100vh - 132px);
   background: rgba(20, 20, 20, 1);

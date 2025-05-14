@@ -1,6 +1,14 @@
 <template>
   <div class="task-bar">
-    <div class="divider-group"></div>
+    <div class="left-group">
+      <button
+        class="btn-toggle"
+        @click="toggleCurrentTrackMute"
+      >
+        <span class="mute-text">MUTE</span>
+        <LedToggle :model-value="!isCurrentTrackMuted" :ledImage="GreenLed"/>
+      </button>
+    </div>
     <div class="right-group">
       <button
         class="btn"
@@ -34,33 +42,27 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent } from "vue";
-import SaveIcon from "@/components/icons/save.vue"
-import LoadIcon from "@/components/icons/load.vue"
-import HelpIcon from "@/components/icons/help.vue"
-import SettingsIcon from "@/components/icons/settings.vue"
+<script setup lang="ts">
+import { defineProps } from "vue";
+import { isCurrentTrackMuted, toggleCurrentTrackMute } from "@/backend/tonalflexBackend";
+import SaveIcon from "@/components/icons/save.vue";
+import LoadIcon from "@/components/icons/load.vue";
+import HelpIcon from "@/components/icons/help.vue";
+import SettingsIcon from "@/components/icons/settings.vue";
+import GreenLed from "@/assets/green-led.png"
+import LedToggle from "@/components/modules/LedToggleController.vue";
 
-export default defineComponent({
-  name: "LeftPanel",
-  props: {
-    selectedButton: String
-  },
-  setup(_, { emit }) {
+const props = defineProps<{
+  selectedButton?: string;
+}>();
 
-    const selectButton = (button: string) => {
-      emit("button-clicked", button); // Emit event with button name
-    };
+const emit = defineEmits<{
+  (e: "button-clicked", button: string): void;
+}>();
 
-    return { selectButton };
-  },
-  components: {
-    SaveIcon,
-    LoadIcon,
-    HelpIcon,
-    SettingsIcon,
-  },
-});
+const selectButton = (button: string) => {
+  emit("button-clicked", button);
+};
 </script>
 
 <style scoped>
@@ -72,6 +74,37 @@ export default defineComponent({
   height: 50px;
   color: white;
   text-align: center;
+}
+
+.left-group{
+  display: flex;
+  height: 72px;
+  justify-content: center;
+  align-items: center;
+  padding-left: 15px;
+}
+
+.mute-text{
+  color:rgba(255, 255, 255, 0.6);
+  margin-right: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform:uppercase;
+}
+
+.btn-toggle{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  min-width: 70px;
+  height: 40px;
+  background: linear-gradient(to bottom, #444, #222);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(142, 142, 142, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 .right-group {
@@ -98,12 +131,6 @@ export default defineComponent({
   height: 50px;
   border:none;
   background:none;
-  /*
-  background: linear-gradient(to bottom, #444, #222);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(142, 142, 142, 0.3);
-  border-radius: 6px;
-  */
 }
 
 .btn:hover{

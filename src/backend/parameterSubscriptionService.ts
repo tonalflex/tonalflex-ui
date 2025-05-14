@@ -5,12 +5,12 @@ import {
 } from '@/proto/sushi/sushi_rpc';
 import NotificationController from '@/backend/sushi/notificationController';
 import ParameterController from '@/backend/sushi/parameterController';
+import { BASE_URL } from '@/backend/baseUrl'
 
 export type ParamListener = (value: number) => void;
 
-const BASE_URL = 'http://elk-pi.local:8081/sushi';
-const notificationController = new NotificationController(BASE_URL);
-const parameterController = new ParameterController(BASE_URL);
+const notificationController = new NotificationController(BASE_URL + "/sushi");
+const parameterController = new ParameterController(BASE_URL + "/sushi");
 
 const subscriptionMap = new Map<
   number,
