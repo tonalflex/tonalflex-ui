@@ -6,7 +6,7 @@
       </div>
     </div>
     <div class="divider-right">
-      <div class="task-bar">
+      <div class="task-bar" v-if="selectedView !== 'pluginUI'">
         <Taskbar @button-clicked="toggleSelectedView" />
       </div>
       <div class="task-bar-overlay" v-if="selectedView != 'effectmap'">
@@ -94,7 +94,7 @@ onMounted(async () => {
 <style scoped>
 .dashboard {
   display: grid;
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 60px 1fr;
   width: 100vw;
   height: 100vh;
   font-family: Arial, sans-serif;
@@ -113,7 +113,7 @@ onMounted(async () => {
 
 .left-panel {
   height: 100%;
-  width: 80px;
+  width: 60px;
 }
 
 .task-bar {
@@ -129,7 +129,7 @@ onMounted(async () => {
 
 .main-panel {
   position: relative;
-  width: calc(100vw - 80px);
+  width: calc(100vw - 60px);
   height: calc(100vh - 72px);
 }
 

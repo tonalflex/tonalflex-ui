@@ -9,6 +9,12 @@
       <div class="menu-button" @click="selectView('wifi')"><wifi class="btn-icon"/><h1>Wifi</h1></div>
       <div class="menu-button" @click="selectView('midi')"><midi class="btn-icon"/><h1>Midi</h1></div>  
     </div>
+    <div class="mute-toggle-container">
+      <label>
+        Auto mute inactive tracks
+        <input class="checkbox-box" type="checkbox" v-model="autoMuteEnabled" />
+      </label>
+    </div>
   </div>
   <Import
     v-if="selectedView === 'import'"
@@ -32,7 +38,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import bpmController from "@/components/modules/BpmController.vue"
-import { getCurrentBpm, setCurrentBpm } from "@/backend/tonalflexBackend"
+import { getCurrentBpm, setCurrentBpm, autoMuteEnabled } from "@/backend/tonalflexBackend"
 import Export from "./settings/Export.vue"
 import Import from "./settings/Import.vue"
 import Midi from "./settings/Midi.vue"
@@ -80,6 +86,7 @@ const updateBpm = async (newBpm: number) => {
   align-items: center;
   flex-direction: column;
   gap: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .bpm-container{
@@ -119,6 +126,18 @@ const updateBpm = async (newBpm: number) => {
   left: 10px;
   width: 30px;
   height: 30px;
+}
+
+.mute-toggle-container {
+  color: white;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-box{
+  margin-left: 10px;
 }
 
 </style>

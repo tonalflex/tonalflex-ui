@@ -1,4 +1,4 @@
-import { ref, computed, markRaw } from 'vue';
+import { ref, computed, markRaw, watch } from 'vue';
 import type { Component } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import SushiTransportController from "@/backend/sushi/transportController";
@@ -6,8 +6,8 @@ import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
 import SushiParameterController from './sushi/parameterController';
+import {BASE_URL} from '@/backend/baseUrl'
 
-export const BASE_URL = 'http://elk-pi.local:8081';
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
 const transportController = new SushiTransportController(BASE_URL + "/sushi");
 const parameterController = new SushiParameterController(BASE_URL + "/sushi");
@@ -100,7 +100,6 @@ export const loadAvailablePlugins = async () => {
 // Something track blabla
 //
 export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
-
   console.log('[selectPluginOnTrack] incoming plugin:', plugin);
 
   if (!plugin || typeof plugin !== 'object' || !plugin.id) {
@@ -118,21 +117,21 @@ export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
   }
 
   const exists = activePluginUIMap.value[trackId].some(
-    p => p.id === plugin.id && p.processorId === plugin.processorId
+    p => p.instanceId === plugin.instanceId
   );
 
   if (!exists) {
     activePluginUIMap.value[trackId].push(plugin);
     console.log('[selectPluginOnTrack] Added plugin with processorId:', plugin.processorId);
   } else {
-    console.log('[selectPluginOnTrack] Plugin already present:', plugin.id);
+    console.log('[selectPluginOnTrack] Plugin already present in UI map:', plugin.id);
   }
 };
 
-export const deselectPluginOnTrack = (trackId: number, pluginId: string) => {
+export const deselectPluginOnTrack = (trackId: number, instanceId: string) => {
   const list = activePluginUIMap.value[trackId];
   if (list) {
-    activePluginUIMap.value[trackId] = list.filter(plugin => plugin.id !== pluginId);
+    activePluginUIMap.value[trackId] = list.filter(plugin => plugin.instanceId !== instanceId);
     if (activePluginUIMap.value[trackId].length === 0) {
       delete activePluginUIMap.value[trackId];
     }
@@ -161,13 +160,47 @@ export const visibleTracks = computed(() =>
     .map(track => {
       const plugins = [...track.plugins];
       if (!plugins.length || plugins[plugins.length - 1].id !== '') {
-        plugins.push({ id: '', parameters: {} });
+        plugins.push({
+          id: '',
+          instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+          parameters: {}
+        });
       }
       return { ...track, plugins };
     })
     .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, visibleTrackCount.value)
 );
+
+// Mute Boolean for Automatic or Manual mute mode
+export const autoMuteEnabled = ref(true);
+
+// Mute watcher
+watch(currentTrackIndex, async (newIndex) => {
+  if (!autoMuteEnabled.value) return;
+
+  const visible = visibleTracks.value;
+  for (let i = 0; i < visible.length; i++) {
+    const trackId = visible[i].id;
+    const isActive = i === newIndex;
+    await setTrackMute(trackId, !isActive);
+  }
+});
+
+export const isCurrentTrackMuted = computed(() => {
+  const track = currentTrack.value;
+  if (!track) return false;
+  return manualMuteState.value[track.id] ?? false;
+});
+
+export const toggleCurrentTrackMute = async () => {
+  const track = currentTrack.value;
+  if (!track) return;
+  await toggleManualMute(track.id);
+};
+
+const manualMuteState = ref<Record<number, boolean>>({});
+
 
 export const getPluginImage = (pluginId: string): string => {
   const match = userPluginList.value.find(p => p.id === pluginId)
@@ -191,15 +224,37 @@ export const getPluginMetaByComponent = (component: Component): PluginMeta | und
       ?? systemPluginList.value.find(p => p.component === component);
 };
 
-export const updatePluginSlot = async (trackId: number, slotIndex: number, pluginId: string): Promise<void> => {
+export const updatePluginSlot = async (
+  trackId: number,
+  slotIndex: number,
+  pluginId: string
+): Promise<void> => {
   const track = pluginTracks.value.find(t => t.id === trackId);
   if (!track) return;
 
-  const updated = [...track.plugins];
-  updated[slotIndex].id = pluginId;
+  // Prevent adding the same plugin twice
+  const alreadyUsed = track.plugins.some((p, i) => p.id === pluginId && i !== slotIndex);
+  if (alreadyUsed) {
+    console.warn(`[updatePluginSlot] Plugin '${pluginId}' already exists on track ${trackId}`);
+    return;
+  }
 
+  const updated = [...track.plugins];
+
+  // Assign pluginId and new instanceId
+  updated[slotIndex] = {
+    id: pluginId,
+    instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+    parameters: {}
+  };
+
+  // Always append new empty slot at end if we just filled the last one
   if (slotIndex === updated.length - 1) {
-    updated.push({ id: '', parameters: {} });
+    updated.push({
+      id: '',
+      instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+      parameters: {}
+    });
   }
 
   track.plugins = updated;
@@ -235,17 +290,23 @@ export const initializeTonalflexSession = async (): Promise<void> => {
     console.log('[Init] Snapshot matches Sushi — restoring UI state');
 
     pluginTracks.value = snapshot.tracks.map(track => {
-      const plugins = [...track.plugins];
+      const plugins = [...track.plugins].map(p => ({
+        ...p,
+        instanceId: p.instanceId ?? (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+      }));
+
       if (!plugins.length || plugins[plugins.length - 1].id !== '') {
-        plugins.push({ id: '', parameters: {} });
+        plugins.push({
+          id: '',
+          instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+          parameters: {}
+        });
       }
-      return {
-        ...track,
-        plugins
-      };
+
+      return { ...track, plugins };
     });
 
-    // Hydrate processorId for each plugin
+    // Hydrate processorId
     for (const track of pluginTracks.value) {
       const processors = await audioGraph.getTrackProcessors(track.id);
 
@@ -253,7 +314,7 @@ export const initializeTonalflexSession = async (): Promise<void> => {
         if (!plugin.id || internalPluginIds.includes(plugin.id)) continue;
 
         const def = userPluginList.value.find(p => p.id === plugin.id)
-                ?? systemPluginList.value.find(p => p.id === plugin.id);
+          ?? systemPluginList.value.find(p => p.id === plugin.id);
 
         const matching = processors.find(p => p.name === def?.name);
         if (matching) {
@@ -272,7 +333,11 @@ export const initializeTonalflexSession = async (): Promise<void> => {
       id: t.id,
       name: t.name,
       alias: t.name,
-      plugins: [{ id: '', parameters: {} }]
+      plugins: [{
+        id: '',
+        instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+        parameters: {}
+      }]
     }));
 
     await saveSessionSnapshot();
@@ -288,18 +353,84 @@ export const isSessionAligned = async (savedTracks: Track[]): Promise<boolean> =
 };
 
 //
-// Add, rearange and (delete plugins) not implemented
+// Delete/remove plugin in pluginChain
+//
+export const deletePluginFromChain = async (
+  trackId: number,
+  instanceId: string
+): Promise<void> => {
+  const track = pluginTracks.value.find(t => t.id === trackId);
+  if (!track) return;
+
+  const slotIndex = track.plugins.findIndex(p => p.instanceId === instanceId);
+  if (slotIndex === -1) {
+    console.warn(`[DeletePlugin] Plugin with instanceId '${instanceId}' not found`);
+    return;
+  }
+
+  const pluginToDelete = track.plugins[slotIndex];
+  if (!pluginToDelete.processorId) return;
+
+  const isLast = slotIndex === track.plugins.length - 2; // right before the trailing empty slot
+
+  // Save parameters of all other plugins
+  const preserved: Plugin[] = [];
+
+  for (let i = 0; i < track.plugins.length; i++) {
+    if (i === slotIndex) continue;
+
+    const plugin = track.plugins[i];
+    if (!plugin.id || !plugin.processorId) {
+      preserved.push({ ...plugin }); // keep empty or inactive slots as-is
+      continue;
+    }
+
+    const state = await audioGraph.getProcessorState(plugin.processorId);
+    const paramMap = Object.fromEntries(
+      state.parameters.map(p => [p.parameter!.parameterId, p.value])
+    );
+
+    preserved.push({
+      id: plugin.id,
+      instanceId: plugin.instanceId,
+      parameters: paramMap,
+    });
+  }
+
+  // Delete the target processor
+  await audioGraph.deleteProcessorFromTrack({
+    processor: { id: pluginToDelete.processorId },
+    track: { id: trackId }
+  });
+
+  // Final plugin list
+  track.plugins = preserved;
+  pluginTracks.value = [...pluginTracks.value];
+
+  if (isLast) {
+    console.log(`[DeletePlugin] Removed last plugin '${pluginToDelete.id}'`);
+  } else {
+    console.log(`[DeletePlugin] Removed plugin '${pluginToDelete.id}' mid-chain — rebuilding`);
+    await rebuildPluginChain(trackId, track.plugins);
+  }
+
+  await saveSessionSnapshot();
+};
+
+//
+// Rearange Plugins in PluginChains
 //
 export const rebuildPluginChain = async (
   trackId: number,
   plugins: Plugin[]
 ): Promise<void> => {
-  console.log("inside rebuildPluginChain!!");
+  console.log("🔄 [Rebuild] Starting plugin chain rebuild on track", trackId);
   const allProcessors = await audioGraph.getTrackProcessors(trackId);
 
+  // Delete all non-internal processors
   for (const p of allProcessors) {
     const name = p.name.toLowerCase();
-    if (name.includes('send') || (!name.includes('return') && !internalPluginIds.includes(name))) {
+    if (!internalPluginIds.includes(name)) {
       await audioGraph.deleteProcessorFromTrack({
         processor: { id: p.id },
         track: { id: trackId },
@@ -307,10 +438,16 @@ export const rebuildPluginChain = async (
     }
   }
 
-  for (const plugin of plugins.filter(p => p.id && !internalPluginIds.includes(p.id))) {
+  const track = pluginTracks.value.find(t => t.id === trackId);
+  if (!track) return;
+
+  for (let i = 0; i < plugins.length; i++) {
+    const plugin = plugins[i];
+    if (!plugin.id || internalPluginIds.includes(plugin.id)) continue;
+
     const def = userPluginList.value.find(p => p.id === plugin.id);
     if (!def) {
-      console.warn(`[Rebuild] Plugin ID '${plugin.id}' not found in loaded plugin list.`);
+      console.warn(`[Rebuild] Missing plugin definition for ID '${plugin.id}'`);
       continue;
     }
 
@@ -327,95 +464,51 @@ export const rebuildPluginChain = async (
       def.path
     );
 
-      let newProc;
-
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
-
-        newProc = updatedProcessors
-          .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
-          .reverse()
-          .find(p => p.name === def.name);
-
-        if (newProc) break;
-
-        console.log(`[🕐 WaitForProcessor] ${def.name} not found on attempt ${attempt + 1}`);
-        await new Promise(r => setTimeout(r, 100));
-      }
-
-      if (!newProc) {
-        console.warn(`[Rebuild] Failed to find processor '${def.name}' after 10 attempts`);
-        return;
-      }
-
-      if (newProc) {
-        const track = pluginTracks.value.find(t => t.id === trackId);
-        if (!track) return;
-      
-        const slotIndex = track.plugins.findIndex(p => p.id === plugin.id);
-        if (slotIndex === -1) return;
-      
-        // ✅ assign the processorId directly to the tracked plugin
-        track.plugins[slotIndex].processorId = newProc.id;
-      
-        // ✅ force Vue to detect the change
-        track.plugins = [...track.plugins];
-      
-        // ✅ pass the updated, reactive plugin object
-        const livePlugin = track.plugins[slotIndex];
-        console.log('[Before selectPluginOnTrack]', {
-          plugin: track.plugins[slotIndex],
-          id: track.plugins[slotIndex].id,
-          processorId: track.plugins[slotIndex].processorId
-        });
-        selectPluginOnTrack(trackId, livePlugin);
-      
-        console.log(`[Rebuild] Set processorId ${newProc.id} for plugin '${plugin.id}' in track ${trackId}`);
-      }
-  }
-
-  if (sushiTrackRoles.post.value != null) {
-    const track = pluginTracks.value.find(t => t.id === trackId);
-    if (!track) {
-      console.warn(`[Rebuild] Could not find track with ID ${trackId} to create send`);
-      return;
+    // Find the new processor by name
+    let newProc;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
+      newProc = updatedProcessors
+        .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
+        .reverse()
+        .find(p => p.name === def.name);
+      if (newProc) break;
+      await new Promise(r => setTimeout(r, 100));
     }
 
-    const processorName = `${track.name}_send`;
-    console.log(`[Debug] Creating send processor: ${processorName}`);
-
-    await audioGraph.createProcessorOnTrack(
-      trackId,
-      processorName,
-      PluginType_Type.INTERNAL,
-      'sushi.testing.send',
-      ''
-    );
-
-    const finalProcessors = await audioGraph.getTrackProcessors(trackId);
-    const sendProc = finalProcessors.find(p => p.name === processorName);
-
-    if (sendProc) {
-      const propList = await parameterController.getProcessorProperties(sendProc.id);
-      const destProp = propList.properties.find(p => p.name === 'destination_name');
-
-      if (destProp) {
-        await parameterController.setPropertyValue(
-          sendProc.id,
-          destProp.id,
-          'Post_return'
-        );
-        console.log(`[Routing] ${processorName} now routes to Post_return on track ${trackId}`);
-      } else {
-        console.warn(`[Routing] 'destination_name' param not found on ${processorName}`);
-      }
-    } else {
-      console.warn(`[Routing] Failed to find created send processor: ${processorName}`);
+    if (!newProc) {
+      console.warn(`[Rebuild] Failed to find processor '${def.name}'`);
+      continue;
     }
+
+    // Match slot by instanceId
+    const slotIndex = track.plugins.findIndex(p => p.instanceId === plugin.instanceId);
+    if (slotIndex === -1) {
+      console.warn(`[Rebuild] No matching plugin slot for instanceId: ${plugin.instanceId}`);
+      continue;
+    }
+
+    track.plugins[slotIndex].processorId = newProc.id;
+    pluginTracks.value = [...pluginTracks.value];
+
+    // Restore parameters
+    const savedParams = plugin.parameters ?? {};
+    const paramInfos = await parameterController.getProcessorParameters(newProc.id);
+
+    for (const param of paramInfos.parameters) {
+      const val = savedParams[param.id];
+      if (val != null) {
+        await parameterController.setParameterValue(newProc.id, param.id, val);
+      }
+    }
+
+    selectPluginOnTrack(trackId, track.plugins[slotIndex]);
+    console.log(`[Rebuild] Recreated plugin '${plugin.id}' at slot ${slotIndex}, processorId=${newProc.id}`);
   }
 
-  console.log(`[Rebuild] Finished plugin chain rebuild for track ${trackId}`);
+  console.log(`[Rebuild] Completed plugin chain rebuild for track ${trackId}`);
 };
+
 
 export const deleteTrackByIndex = async (index: number): Promise<void> => {
   const track = visibleTracks.value[index];
@@ -431,7 +524,12 @@ export const deleteTrackByIndex = async (index: number): Promise<void> => {
     }
   }
 
-  track.plugins = [{ id: '', parameters: {} }];
+  track.plugins = [{
+    id: '',
+    instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+    parameters: {}
+  }];
+
   const trackIndexInAll = pluginTracks.value.findIndex(t => t.id === track.id);
   if (trackIndexInAll !== -1) {
     pluginTracks.value[trackIndexInAll].name = `Track${index + 1}`;
@@ -468,11 +566,15 @@ const saveSessionSnapshot = async (): Promise<void> => {
   const sessionTracks: Track[] = [];
 
   for (const track of pluginTracks.value) {
-    const pluginsWithParams = [];
+    const pluginsWithParams: Plugin[] = [];
 
     for (const plugin of track.plugins) {
       if (!plugin.id) {
-        pluginsWithParams.push({ id: '', parameters: {} });
+        pluginsWithParams.push({
+          id: '',
+          instanceId: plugin.instanceId ?? (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+          parameters: {}
+        });
         continue;
       }
 
@@ -480,7 +582,6 @@ const saveSessionSnapshot = async (): Promise<void> => {
         ?? systemPluginList.value.find(p => p.id === plugin.id);
       if (!def) continue;
 
-      // fetch processor ID based on plugin name (assumes unique per track)
       const processors = await audioGraph.getTrackProcessors(track.id);
       const proc = processors.find(p => p.name === def.name);
       if (!proc) continue;
@@ -498,6 +599,7 @@ const saveSessionSnapshot = async (): Promise<void> => {
 
       pluginsWithParams.push({
         id: plugin.id,
+        instanceId: plugin.instanceId ?? (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
         parameters: paramValues
       });
     }
@@ -534,7 +636,13 @@ export const loadSessionSnapshot = async (): Promise<{ tracks: Track[] } | null>
 };
 
 export const restoreFrontendSession = async (data: { tracks: Track[] }): Promise<void> => {
-  pluginTracks.value = data.tracks;
+  pluginTracks.value = data.tracks.map(track => ({
+    ...track,
+    plugins: track.plugins.map(plugin => ({
+      ...plugin,
+      instanceId: plugin.instanceId ?? (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+    }))
+  }));
 };
 
 export const saveNamedSession = async (name: string, json: string): Promise<void> => {
@@ -555,7 +663,7 @@ export const deleteSavedSession = async (name: string): Promise<void> => {
   await butler.deleteSession(name);
 };
 
-// BPM getter and setter
+// Get global BPM
 export const getCurrentBpm = async (): Promise<number> => {
   try {
     const bpm = await transportController.getTempo();
@@ -563,10 +671,11 @@ export const getCurrentBpm = async (): Promise<number> => {
     return bpm;
   } catch (err) {
     console.error("[BPM] Failed to get tempo", err);
-    return 120; // fallback/default
+    return 0; // fallback/default
   }
 };
 
+// Set  global BPM
 export const setCurrentBpm = async (newBpm: number): Promise<void> => {
   try {
     await transportController.setTempo(newBpm);
@@ -595,3 +704,62 @@ export async function downloadFromFolder(folder: string, file: File) {
   const bytes = new Uint8Array(arrayBuffer);
   await butler.downloadFile(folder, file.name);
 }
+
+//
+// Track Controllers
+//
+// Helper function to get correct param id between pre/post and regular tracks
+async function getParamId(trackId: number, name: string): Promise<number> {
+  const list = await parameterController.getTrackParameters(trackId);
+  const entry = list.parameters.find(p => p.name === name);
+  if (!entry) throw new Error(`[getParamId] Parameter '${name}' not found on track ${trackId}`);
+  return entry.id;
+}
+
+export async function getTrackGain(trackId: number): Promise<number> {
+  const id = await getParamId(trackId, "gain");
+  return await parameterController.getParameterValue({ processorId: trackId, parameterId: id });
+}
+
+export async function setTrackGain(trackId: number, value: number): Promise<void> {
+  const id = await getParamId(trackId, "gain");
+  await parameterController.setParameterValue(trackId, id, value);
+}
+
+export async function getTrackPan(trackId: number): Promise<number> {
+  const id = await getParamId(trackId, "pan");
+  return await parameterController.getParameterValue({ processorId: trackId, parameterId: id });
+}
+
+export async function setTrackPan(trackId: number, value: number): Promise<void> {
+  const id = await getParamId(trackId, "pan");
+  await parameterController.setParameterValue(trackId, id, value);
+}
+
+export async function getTrackMute(trackId: number): Promise<boolean> {
+  const id = await getParamId(trackId, "mute");
+  const val = await parameterController.getParameterValue({ processorId: trackId, parameterId: id });
+  return val > 0;
+}
+
+export async function setTrackMute(trackId: number, mute: boolean): Promise<void> {
+  const id = await getParamId(trackId, "mute");
+  await parameterController.setParameterValue(trackId, id, mute ? 1 : 0);
+}
+
+export const toggleManualMute = async (trackId: number): Promise<void> => {
+  const currentlyMuted = manualMuteState.value[trackId] ?? false;
+  const next = !currentlyMuted;
+
+  manualMuteState.value[trackId] = next;
+  await setTrackMute(trackId, next);
+};
+
+export const setManualMute = async (trackId: number, mute: boolean): Promise<void> => {
+  manualMuteState.value[trackId] = mute;
+  await setTrackMute(trackId, mute);
+};
+
+export const isTrackManuallyMuted = (trackId: number): boolean => {
+  return manualMuteState.value[trackId] ?? false;
+};

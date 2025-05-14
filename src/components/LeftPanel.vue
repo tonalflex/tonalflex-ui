@@ -151,11 +151,11 @@ const fetchSystemInfo = async () => {
   const tracks = await audioGraphCtrl.getAllTracks();
   console.log("tracks: ", tracks);
 
-  const processorId = 12; // your plugin's processor ID
+  //const processorId = 12; // your plugin's processor ID
+  //const testValue = 0.86;
 
-  const testValue = 0.86;
-
-  // Step 1: Fetch all parameters for the processor
+  /*
+  // Fetch all parameters for the processor
   const paramList = await parameterCtrl.getProcessorParameters(processorId);
   const firstParam = paramList.parameters[0];
 
@@ -184,7 +184,7 @@ const fetchSystemInfo = async () => {
   } else {
     console.warn("❌ Parameter did not stick — Sushi ignored or reset it.");
   }
-
+  */
     //const version = await systemController.getSushiVersion();
     //console.log('Sushi Version:', version);
 
@@ -246,8 +246,8 @@ const fetchSystemInfo = async () => {
     //const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
     //console.log("processors on track: ", trackProcessors);
 
-    //const trackParams = await parameterCtrl.getTrackParameters(0);
-    //console.log("track Parameters: ", trackParams);
+    const trackParams = await parameterCtrl.getTrackParameters(0);
+    console.log("track Parameters: ", trackParams);
   
 };
 </script>
