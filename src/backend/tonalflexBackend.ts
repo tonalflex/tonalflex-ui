@@ -2,6 +2,7 @@ import { ref, computed, markRaw, watch } from 'vue';
 import type { Component } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import SushiTransportController from "@/backend/sushi/transportController";
+import { removeProcessorSubscription } from "@/backend/parameterSubscriptionService"
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
@@ -17,6 +18,8 @@ const butler = new ButlerController(BASE_URL + "/butler");
 export const pluginTracks = ref<Track[]>([]);
 export const currentTrackIndex = ref(0);
 export const sessionReady = ref(false);
+export const loadingMessage = ref("Connecting")
+export const updatePluginReady = ref(false);
 export const visibleTrackCount = ref(1);
 export const sushiTrackRoles = {
   pre: ref<number | null>(null),
@@ -24,6 +27,7 @@ export const sushiTrackRoles = {
   user: ref<{ id: number; name: string }[]>([])
 };
 const internalPluginIds = ['send', 'return'];
+const manualMuteState = ref<Record<number, boolean>>({});
 
 // Plugin Collectors
 export const userPluginList = ref<PluginMeta[]>([]);
@@ -184,11 +188,13 @@ watch(currentTrackIndex, async (newIndex) => {
     const trackId = visible[i].id;
     const isActive = i === newIndex;
     await setTrackMute(trackId, !isActive);
+    manualMuteState.value[trackId] = !isActive;
   }
 });
 
 export const isCurrentTrackMuted = computed(() => {
   const track = currentTrack.value;
+ 
   if (!track) return false;
   return manualMuteState.value[track.id] ?? false;
 });
@@ -199,8 +205,17 @@ export const toggleCurrentTrackMute = async () => {
   await toggleManualMute(track.id);
 };
 
-const manualMuteState = ref<Record<number, boolean>>({});
+async function muteUserTracks(): Promise<void> {
+  const tracks = sushiTrackRoles.user.value;
 
+  for (let i = 0; i < tracks.length; i++) {
+    const { id } = tracks[i];
+    const shouldMute = i !== 0;
+    await setManualMute(id, shouldMute);
+  }
+
+  console.log("[Init] Muted all user tracks except index 0");
+}
 
 export const getPluginImage = (pluginId: string): string => {
   const match = userPluginList.value.find(p => p.id === pluginId)
@@ -276,13 +291,31 @@ export const availableEffects = computed(() =>
 export const initializeTonalflexSession = async (): Promise<void> => {
   await loadAvailablePlugins();
 
-  const sushiTracks = await audioGraph.getAllTracks();
+  let retries = 0;
+  let sushiTracks = null;
+
+  while (!sushiTracks && retries < 10) {
+    try {
+      sushiTracks = await audioGraph.getAllTracks();
+    } catch (err) {
+      retries++;
+      loadingMessage.value = `Connection failed. Retrying (${retries}/10)...`;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // wait 1 second
+    }
+  }
+
+  if (!sushiTracks) {
+    loadingMessage.value = "Connection Lost, restart device!";
+    return;
+  }
 
   sushiTrackRoles.pre.value = sushiTracks.find(t => t.name === 'pre')?.id ?? null;
   sushiTrackRoles.post.value = sushiTracks.find(t => t.name === 'post')?.id ?? null;
   sushiTrackRoles.user.value = sushiTracks
     .filter(t => /^Track[1-8]$/.test(t.name))
     .map(t => ({ id: t.id, name: t.name }));
+
+  muteUserTracks();
 
   const snapshot = await loadSessionSnapshot();
 
@@ -306,6 +339,11 @@ export const initializeTonalflexSession = async (): Promise<void> => {
       return { ...track, plugins };
     });
 
+    visibleTrackCount.value =
+    snapshot.visibleTrackCount
+    ?? snapshot.tracks.length
+    ?? 1;
+
     // Hydrate processorId
     for (const track of pluginTracks.value) {
       const processors = await audioGraph.getTrackProcessors(track.id);
@@ -316,7 +354,8 @@ export const initializeTonalflexSession = async (): Promise<void> => {
         const def = userPluginList.value.find(p => p.id === plugin.id)
           ?? systemPluginList.value.find(p => p.id === plugin.id);
 
-        const matching = processors.find(p => p.name === def?.name);
+        const uniqueName = def?.name + "-" + track.id;
+        const matching = processors.find(p => p.name === uniqueName);
         if (matching) {
           plugin.processorId = matching.id;
           selectPluginOnTrack(track.id, plugin);
@@ -355,6 +394,7 @@ export const isSessionAligned = async (savedTracks: Track[]): Promise<boolean> =
 //
 // Delete/remove plugin in pluginChain
 //
+// TODO: Tell parameterSubsctiption to unsubscribe the plugin params
 export const deletePluginFromChain = async (
   trackId: number,
   instanceId: string
@@ -371,49 +411,34 @@ export const deletePluginFromChain = async (
   const pluginToDelete = track.plugins[slotIndex];
   if (!pluginToDelete.processorId) return;
 
-  const isLast = slotIndex === track.plugins.length - 2; // right before the trailing empty slot
+  removeProcessorSubscription(pluginToDelete.processorId);
 
-  // Save parameters of all other plugins
-  const preserved: Plugin[] = [];
+  // Delete processor first
+  await audioGraph.deleteProcessorFromTrack({
+    processor: { id: pluginToDelete.processorId },
+    track: { id: trackId },
+  });
 
-  for (let i = 0; i < track.plugins.length; i++) {
-    if (i === slotIndex) continue;
+  // Remove plugin from list
+  const updated = [...track.plugins];
+  updated.splice(slotIndex, 1);
 
-    const plugin = track.plugins[i];
-    if (!plugin.id || !plugin.processorId) {
-      preserved.push({ ...plugin }); // keep empty or inactive slots as-is
-      continue;
-    }
-
-    const state = await audioGraph.getProcessorState(plugin.processorId);
-    const paramMap = Object.fromEntries(
-      state.parameters.map(p => [p.parameter!.parameterId, p.value])
-    );
-
-    preserved.push({
-      id: plugin.id,
-      instanceId: plugin.instanceId,
-      parameters: paramMap,
+  // Ensure trailing empty slot exists
+  if (updated.length === 0 || updated[updated.length - 1].id !== '') {
+    updated.push({
+      id: '',
+      instanceId: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+      parameters: {},
     });
   }
 
-  // Delete the target processor
-  await audioGraph.deleteProcessorFromTrack({
-    processor: { id: pluginToDelete.processorId },
-    track: { id: trackId }
-  });
-
-  // Final plugin list
-  track.plugins = preserved;
+  // Save updated list and trigger UI
+  track.plugins = updated;
   pluginTracks.value = [...pluginTracks.value];
 
-  if (isLast) {
-    console.log(`[DeletePlugin] Removed last plugin '${pluginToDelete.id}'`);
-  } else {
-    console.log(`[DeletePlugin] Removed plugin '${pluginToDelete.id}' mid-chain — rebuilding`);
-    await rebuildPluginChain(trackId, track.plugins);
-  }
+  console.log(`[DeletePlugin] Removed plugin '${pluginToDelete.id}' from slot ${slotIndex}`);
 
+  await rebuildPluginChain(trackId, updated);
   await saveSessionSnapshot();
 };
 
@@ -451,9 +476,11 @@ export const rebuildPluginChain = async (
       continue;
     }
 
+    const uniqueName = def.name + "-" + track.id;
+
     await audioGraph.createProcessorOnTrack(
       trackId,
-      def.name,
+      uniqueName,
       {
         internal: PluginType_Type.INTERNAL,
         vst2x: PluginType_Type.VST2X,
@@ -464,20 +491,20 @@ export const rebuildPluginChain = async (
       def.path
     );
 
-    // Find the new processor by name
+    // Find the new processor
     let newProc;
     for (let attempt = 0; attempt < 10; attempt++) {
       const updatedProcessors = await audioGraph.getTrackProcessors(trackId);
       newProc = updatedProcessors
         .filter(p => !internalPluginIds.includes(p.name.toLowerCase()))
-        .reverse()
-        .find(p => p.name === def.name);
+        .find(p => p.name === uniqueName);
+
       if (newProc) break;
       await new Promise(r => setTimeout(r, 100));
     }
 
     if (!newProc) {
-      console.warn(`[Rebuild] Failed to find processor '${def.name}'`);
+      console.warn(`[Rebuild] Failed to find processor '${def.name}' on track ${trackId}`);
       continue;
     }
 
@@ -508,7 +535,6 @@ export const rebuildPluginChain = async (
 
   console.log(`[Rebuild] Completed plugin chain rebuild for track ${trackId}`);
 };
-
 
 export const deleteTrackByIndex = async (index: number): Promise<void> => {
   const track = visibleTracks.value[index];
@@ -564,7 +590,7 @@ export const showNextTrack = (): void => {
 //
 const saveSessionSnapshot = async (): Promise<void> => {
   const sessionTracks: Track[] = [];
-
+  console.log("[snapshot] - saving snapshot!");
   for (const track of pluginTracks.value) {
     const pluginsWithParams: Plugin[] = [];
 
@@ -583,7 +609,8 @@ const saveSessionSnapshot = async (): Promise<void> => {
       if (!def) continue;
 
       const processors = await audioGraph.getTrackProcessors(track.id);
-      const proc = processors.find(p => p.name === def.name);
+      const uniqueName = def.name + "-" + track.id;
+      const proc = processors.find(p => p.name === uniqueName);
       if (!proc) continue;
 
       const paramList = await parameterController.getProcessorParameters(proc.id);
@@ -613,13 +640,17 @@ const saveSessionSnapshot = async (): Promise<void> => {
   }
 
   try {
-    await butler.saveSnapshot(JSON.stringify({ tracks: sessionTracks }));
+    const snapshot = {
+    tracks: sessionTracks,
+    visibleTrackCount: visibleTrackCount.value,
+  };
+    await butler.saveSnapshot(JSON.stringify(snapshot));
   } catch (e) {
     console.warn('[Session] Failed to save full snapshot:', e);
   }
 };
 
-export const loadSessionSnapshot = async (): Promise<{ tracks: Track[] } | null> => {
+export const loadSessionSnapshot = async (): Promise<{ tracks: Track[], visibleTrackCount?: number } | null> => {
   const res = await butler.loadSnapshot();
 
   if (!res.found) {
@@ -628,7 +659,11 @@ export const loadSessionSnapshot = async (): Promise<{ tracks: Track[] } | null>
   }
 
   try {
-    return JSON.parse(res.jsonData);
+    const parsed = JSON.parse(res.jsonData);
+    return {
+      tracks: parsed.tracks,
+      visibleTrackCount: parsed.visibleTrackCount,
+    };
   } catch (e) {
     console.warn('[Session] Snapshot JSON was found but failed to parse:', e);
     return null;
@@ -745,6 +780,7 @@ export async function getTrackMute(trackId: number): Promise<boolean> {
 export async function setTrackMute(trackId: number, mute: boolean): Promise<void> {
   const id = await getParamId(trackId, "mute");
   await parameterController.setParameterValue(trackId, id, mute ? 1 : 0);
+  manualMuteState.value[trackId] = mute;
 }
 
 export const toggleManualMute = async (trackId: number): Promise<void> => {

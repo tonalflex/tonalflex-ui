@@ -1,5 +1,6 @@
 <template>
-  <div class="dashboard">
+  <LoadingScreen :message="loadingMessage" v-if="!sessionReady"/>
+  <div class="dashboard" v-if="sessionReady">
     <div class="diveder-left">
       <div class="left-panel">
         <LeftPanel @button-clicked="toggleSelectedView" />
@@ -22,6 +23,7 @@
           @close-plugin-ui="selectedView = 'effectmap'"
         />
       </div>
+
       <div class="main-panel">
         <div class="slide-container">
           <EffectMap
@@ -35,7 +37,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onBeforeMount } from "vue";
+import LoadingScreen from "@/components/modules/LoadingScreen.vue"
 import LeftPanel from "@/components/LeftPanel.vue";
 import EffectMap from "@/components/main-panel/EffectMap.vue";
 import Tuner from "@/components/plugins/Tuner.vue";
@@ -53,6 +56,8 @@ import {
   loadNamedSession,
   restoreFrontendSession,
   loadSessionSnapshot,
+  sessionReady,
+  loadingMessage,
 } from "@/backend/tonalflexBackend";
 
 const isOverlayEnabled = ref(false);
@@ -86,7 +91,7 @@ const handleLoad = async (name: string) => {
   }
 };
 
-onMounted(async () => {
+onBeforeMount(async () => {
   await initializeTonalflexSession();
 });
 </script>

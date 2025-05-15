@@ -1,9 +1,19 @@
+<template>
+  <div class="spinner" v-if="!isReady">
+    <Spinner/>
+  </div>
+  <PluginProvider v-else>
+    <component :is="component" />
+  </PluginProvider>
+</template>
+
 <script setup lang="ts">
 import { defineComponent, defineProps, h, provide, ref, onMounted } from "vue";
 import type { Component } from "vue";
 import SushiParameterController from "@/backend/sushi/parameterController";
 import { SushiPluginBackend } from "@/backend/sushiPluginBackend";
 import { getPluginMetaByComponent, listFilesWrapper } from "@/backend/tonalflexBackend";
+import Spinner from "@/components/modules/LoadSpinner.vue"
 import { BASE_URL } from "@/backend/baseUrl";
 const props = defineProps<{
   component: Component;
@@ -40,9 +50,14 @@ const PluginProvider = defineComponent({
 });
 </script>
 
-<template>
-  <div v-if="!isReady">Loading plugin UI...</div>
-  <PluginProvider v-else>
-    <component :is="component" />
-  </PluginProvider>
-</template>
+<style scoped>
+
+.spinner{
+  display:flex;
+  justify-content: center;
+  align-items: center;
+  width:100%;
+  height: 100%;
+}
+
+</style>
