@@ -3,22 +3,17 @@
     <div class="loading-screen">
       <img src="@/assets/logo.png" alt="Logo" class="logo" />
       <div class="spinner"></div>
-      <p>Connecting</p>
+      <p>{{message}}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { initializeTonalflexSession } from '@/backend/tonalflexBackend';
 
-const router = useRouter();
+const props = defineProps<{
+  message: string;
+}>();
 
-onMounted(async () => {
-  await initializeTonalflexSession();
-  router.push('/dashboard');
-});
 </script>
 
 <style scoped>

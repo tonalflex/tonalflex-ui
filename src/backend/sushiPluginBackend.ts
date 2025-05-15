@@ -156,29 +156,39 @@ const sushiMap: {
     adapt: (id, controller, sub, params): ComboBoxParameter => {
       const key = `${id.processorId}:${id.parameterId}`;
       const param = params.find(p => p.id === id.parameterId);
-      const max = param?.maxDomainValue ?? 0;
+      const max = param?.maxDomainValue ?? 1;
       const label = param?.label ?? "Option";
 
       const choices = Array.from({ length: Math.round(max) + 1 }, (_, i) => `${label} ${i}`);
       const listeners = new Map<number, (val: number) => void>();
+      const wrapperMap = new Map<number, (v: number) => void>();
       let idCounter = 0;
 
       return {
-        getChoiceIndex: () => Math.floor(sub.cache.get(key) ?? 0),
-        setChoiceIndex: (index: number) => controller.setParameterValue(id.processorId, id.parameterId, index),
+        getChoiceIndex: () => {
+          const norm = sub.cache.get(key) ?? 0;
+          return Math.round(norm * max);
+        },
+        setChoiceIndex: (index: number) => {
+          const norm = index / max;
+          controller.setParameterValue(id.processorId, id.parameterId, norm);
+        },
         getChoices: () => choices,
         valueChangedEvent: {
           addListener: (listener) => {
+            const wrapped = (v: number) => listener(Math.round(v * max));
             if (!sub.listeners.has(key)) sub.listeners.set(key, new Set());
-            sub.listeners.get(key)?.add(listener);
+            sub.listeners.get(key)?.add(wrapped);
             const id = idCounter++;
             listeners.set(id, listener);
+            wrapperMap.set(id, wrapped);
             return id;
           },
           removeListener: (id) => {
-            const listener = listeners.get(id);
-            if (listener) sub.listeners.get(key)?.delete(listener);
+            const wrapped = wrapperMap.get(id);
+            if (wrapped) sub.listeners.get(key)?.delete(wrapped);
             listeners.delete(id);
+            wrapperMap.delete(id);
           }
         }
       };

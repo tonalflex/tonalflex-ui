@@ -97,7 +97,7 @@ const activePlugins = computed(() => {
   console.log("TRACK PLUGINS:", track.plugins);
   console.log("ACTIVE UI MAP:", getActivePluginsForTrack(track.id));
 
-  // Fallback test: just return all that have a processorId
+  // Fallback: just return all that have a processorId
   return track.plugins.filter((p) => p.processorId != null);
 });
 

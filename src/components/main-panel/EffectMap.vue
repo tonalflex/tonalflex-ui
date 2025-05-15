@@ -64,8 +64,13 @@
             >
                 <div class="btn-glass-border">
                   <div class="plugin-content">
-                    <img v-if="plugin.id" :src="getPluginImage(plugin.id)" class="plugin-image" />
-                    <div v-if="plugin.id" class="plugin-name">{{ getPluginName(plugin.id) }}</div>
+                    <template v-if="loadingPlugin[index]">
+                      <Spinner />
+                    </template>
+                    <template v-else-if="plugin.id">
+                      <img :src="getPluginImage(plugin.id)" class="plugin-image" />
+                      <div class="plugin-name">{{ getPluginName(plugin.id) }}</div>
+                    </template>
                     <OhVueIcon v-else name="co-plus" class="btn-icon" />
                   </div>
                 </div>
@@ -122,6 +127,7 @@ import Carousel from '@/components/modules/ContentCarousel.vue';
 import DropDown from '@/components/modules/DropDown.vue';
 import TrackList from '@/components/modules/List.vue';
 import CloseOnOutsideClick from '@/components/modules/CloseOnOutsideClick.vue';
+import Spinner from "@/components/modules/LoadSpinner.vue"
 import {
   visibleTracks,
   currentTrackIndex,
@@ -148,6 +154,7 @@ const activePluginId = ref<string | null>(null);
 const showTrackSettings = ref(false);
 const availableEffects = computed(() => userPluginList.value);
 const isPluginOverlayVisible = ref(false);
+const loadingPlugin = ref<Record<number, boolean>>({});
 
 addIcons(CoPlus);
 
@@ -174,10 +181,14 @@ const openPluginSelectionForSlot = (index: number) => {
 const confirmPluginSelection = async (pluginId: string) => {
   const track = visibleTracks.value[currentTrackIndex.value];
   if (selectedSlotIndex.value !== null) {
+    const slot = selectedSlotIndex.value;
+    pluginOverlayVisible.value = false;
+    loadingPlugin.value[slot] = true;
+    console.log("[CPS] track id: ", track.id)
     await updatePluginSlot(track.id, selectedSlotIndex.value, pluginId);
     selectedSlotIndex.value = null;
-    pluginOverlayVisible.value = false;
     activePluginId.value = pluginId;
+    loadingPlugin.value[slot] = false;
   }
 };
 

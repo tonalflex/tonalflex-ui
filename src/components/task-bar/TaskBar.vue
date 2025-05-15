@@ -5,8 +5,9 @@
         class="btn-toggle"
         @click="toggleCurrentTrackMute"
       >
-        <span class="mute-text">MUTE</span>
-        <LedToggle :model-value="!isCurrentTrackMuted" :ledImage="GreenLed"/>
+        <SpekaerOn class="mute-icon"  v-if="!isCurrentTrackMuted"/>
+        <SpeakerOff class="mute-icon" v-if="isCurrentTrackMuted"/>
+        <LedToggle :model-value="isCurrentTrackMuted" :ledImage="GreenLed"/>
       </button>
     </div>
     <div class="right-group">
@@ -51,6 +52,8 @@ import HelpIcon from "@/components/icons/help.vue";
 import SettingsIcon from "@/components/icons/settings.vue";
 import GreenLed from "@/assets/green-led.png"
 import LedToggle from "@/components/modules/LedToggleController.vue";
+import SpekaerOn from "@/components/icons/unmuted.vue"
+import SpeakerOff from "@/components/icons/muted.vue"
 
 const props = defineProps<{
   selectedButton?: string;
@@ -141,5 +144,12 @@ const selectButton = (button: string) => {
   color:rgba(255, 255, 255, 0.6);
   width:30px;
   height: 30px;
+}
+
+.mute-icon{
+  color:rgba(255, 255, 255, 0.6);
+  width:35px;
+  height: 35px;
+  margin-right: 15px;
 }
 </style>
