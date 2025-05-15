@@ -22,7 +22,7 @@
     "@protobuf-ts/grpcweb-transport": "^2.9.4",
     "@protobuf-ts/runtime": "^2.9.4",
     "@tonalflex/template-plugin": "^0.0.8",
-    "@tonalflex/neuralamp-plugin": "^0.0.8",
+    "@tonalflex/neuralamp-plugin": "^0.0.9",
     "@tonalflex/delay-plugin": "^0.0.2",
     "google-protobuf": "^3.21.4",
     "grpc-tools": "^1.12.4",
