@@ -1,74 +1,98 @@
 <template>
   <div class="side-bar">
     <div class="menu-buttons">
-      <button
-        class="btn"
-        :class="{ active: selectedButton === 'looper' }"
-        @click="selectButton('looper')"
-      >
-        <OhVueIcon name="co-loop" class="btn-icon" />
-      </button>
-      <button
-        class="btn"
-        :class="{ active: selectedButton === 'tuner' }"
-        @click="selectButton('tuner')"
-      >
-        <TunerIcon class="btn-icon-custom" />
-      </button>
-      <button
-        class="btn"
-        :class="{ active: selectedButton === 'metronome' }"
-        @click="selectButton('metronome')"
-      >
-        <OhVueIcon name="gi-metronome" class="btn-icon" />
-      </button>
-      <button
-        class="btn"
-        :class="{ active: selectedButton === 'effectmap' }"
-        @click="fetchSystemInfo"
-      >
-        <AmpIcon class="btn-icon-custom" />
-      </button>
+      <div class="group-1">
+        <button
+          class="btn"
+          :class="{ active: selectedButton === 'looper' }"
+          @click="selectButton('looper')"
+        >
+          <OhVueIcon name="co-loop" class="btn-icon" />
+        </button>
+        <button
+          class="btn"
+          :class="{ active: selectedButton === 'tuner' }"
+          @click="selectButton('tuner')"
+        >
+          <TunerIcon class="btn-icon-custom" />
+        </button>
+      </div>
+      <div class="group-2">
+        <button
+          class="btn"
+          :class="{ active: selectedButton === 'metronome' }"
+          @click="selectButton('metronome')"
+        >
+          <OhVueIcon name="gi-metronome" class="btn-icon" />
+        </button>
+        <button
+          class="btn"
+          :class="{ active: selectedButton === 'effectmap' }"
+          @click="fetchSystemInfo"
+        >
+          <AmpIcon class="btn-icon-custom" />
+        </button>
+      </div>
     </div>
-    <div class="volume-headphone">
+    <div class="volume-headphone" v-if="!isMobile">
       <OhVueIcon name="bi-headphones" class="icon" />
-      <input
-        type="range"
-        min="1"
-        orient="vertical"
-        max="100"
-        :style="{
-          background: getGradientFill(cvInputLevel),
-        }"
-        v-model="volume"
-        class="slider"
-        @touchstart="lockScroll"
-        @touchmove="lockScroll"
-        @touchend="unlockScroll"
-      />
+      <div class="slider-wrapper">
+        <div class="peak-meter">
+          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+        </div>
+        <input
+          type="range"
+          min="1"
+          orient="vertical"
+          max="100"
+          :style="{
+            background: getSliderFill(volume),
+          }"
+          v-model="volume"
+          class="slider"
+          @touchstart="lockScroll"
+          @touchmove="lockScroll"
+          @touchend="unlockScroll"
+        />
+        <div class="peak-meter">
+          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+        </div>
+      </div>
     </div>
     <div class="volume-master">
-      <OhVueIcon name="bi-volume-up" class="icon" />
-      <input
-        type="range"
-        min="1"
-        orient="vertical"
-        max="100"
-        :style="{
-          background: getGradientFill(cvInputLevel),
-        }"
-        v-model="masterVolume"
-        class="slider"
-        @touchstart="lockScroll"
-        @touchmove="lockScroll"
-        @touchend="unlockScroll"
+      <OhVueIcon
+        :name="isMobile && currentSlider === 'headphones' ? 'bi-headphones' : 'bi-volume-up'"
+        class="icon"
+        @click="isMobile && toggleSlider()"
       />
+      <div class="slider-wrapper">
+        <div class="peak-meter">
+          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+        </div>
+        <input
+          type="range"
+          min="1"
+          orient="vertical"
+          max="100"
+          :style="{
+             background: getSliderFill(currentSliderValue),
+          }"
+          v-model="currentSliderValue"
+          class="slider"
+          @touchstart="lockScroll"
+          @touchmove="lockScroll"
+          @touchend="unlockScroll"
+        />
+        <div class="peak-meter">
+          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed} from "vue";
 import { OhVueIcon, addIcons } from "oh-vue-icons";
 import {
   BiHeadphones,
@@ -80,6 +104,7 @@ import {
 } from "oh-vue-icons/icons";
 import TunerIcon from "@/components/icons/tuner.vue";
 import AmpIcon from "@/components/icons/amplifier-icon.vue";
+import { useMobileHeight} from "@/backend/utils/useMobileHeight"
 import { getTrackGain, setTrackGain, sushiTrackRoles } from "@/backend/tonalflexBackend";
 //import SystemController from '@/backend/sushi/systemController';
 //import audioRoutingController from '@/backend/sushi/audioRoutingController'
@@ -108,9 +133,32 @@ const emit = defineEmits<{
   (e: "button-clicked", button: string): void;
 }>();
 
+const isMobile = useMobileHeight(); 
+
+const currentSlider = ref<'master' | 'headphones'>('master');
+const toggleSlider = () => {
+  currentSlider.value = currentSlider.value === 'master' ? 'headphones' : 'master';
+};
+
 // State
 const volume = ref(50);
 const masterVolume = ref(0);
+const peakLevel = ref(0.9);
+
+const currentSliderValue = computed(() =>
+  currentSlider.value === 'headphones'
+    ? volume.value
+    : masterVolume.value
+);
+
+const updateCurrentSlider = (e: Event) => {
+  const val = Number((e.target as HTMLInputElement).value);
+  if (isMobile.value && currentSlider.value === 'headphones') {
+    volume.value = val;
+  } else {
+    masterVolume.value = val;
+  }
+};
 
 watch(masterVolume, (v) => {
   const postId = sushiTrackRoles.post.value;
@@ -147,13 +195,13 @@ const unlockScroll = () => {
 
 const cvInputLevel = ref(0.9);
 
-const getGradientFill = (level: number): string => {
-  const clampedLevel = Math.max(0, Math.min(1, level)); // Ensure 0-1 range
-  const levelPercent = clampedLevel * 100;
-
-  return `linear-gradient(to top, 
-    #00FF00 0%,          /* Pure green at bottom */
-    #FF0000 100%         /* Pure red at top */
+const getSliderFill = (value: number): string => {
+  const percent = Math.max(0, Math.min(100, value));
+  return `linear-gradient(to top,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.5) ${percent}%,
+    transparent ${percent}%,
+    transparent 100%
   )`;
 };
 
@@ -168,20 +216,14 @@ const fetchSystemInfo = async () => {
   const tracks = await audioGraphCtrl.getAllTracks();
   console.log("tracks: ", tracks);
 
-  //const processorId = 12; // your plugin's processor ID
+  const processorId = 11;
   //const testValue = 0.86;
 
-  /*
+ 
   // Fetch all parameters for the processor
   const paramList = await parameterCtrl.getProcessorParameters(processorId);
-  const firstParam = paramList.parameters[0];
-
-  if (!firstParam) {
-    console.warn("❌ No parameters found for processor", processorId);
-    return;
-  }
-
-
+  console.log("param list:", paramList);
+ /*
   const parameterId = firstParam.id;
   const name = firstParam.name;
 
@@ -263,28 +305,34 @@ const fetchSystemInfo = async () => {
     //const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
     //console.log("processors on track: ", trackProcessors);
 
-    const trackParams = await parameterCtrl.getTrackParameters(0);
-    console.log("track Parameters: ", trackParams);
+    //const trackParams = await parameterCtrl.getTrackParameters(0);
+    //console.log("track Parameters: ", trackParams);
   
 };
 </script>
 
 <style scoped>
 .side-bar {
-  display: grid;
-  grid-template-columns: 80px;
-  grid-template-rows: 3fr 3fr 3fr;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
-  justify-content: center;
   border-right: 1px solid rgba(255, 255, 255, 0.2);
   background-color: rgba(51, 51, 51, 0.2);
 }
 
 .menu-buttons {
-  display: grid;
-  gap: 15px;
-  padding: 15px;
-  justify-content: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.group-1,
+.group-2{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
 }
 
 .btn {
@@ -321,18 +369,36 @@ const fetchSystemInfo = async () => {
   color: rgba(255, 255, 255, 0.6);
 }
 
-.volume-headphone {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  justify-content: center;
-  align-items: start;
+.volume-headphone,
+.volume-master {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 5px;
+  overflow: hidden;
 }
 
-.volume-master {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  justify-content: center;
-  align-items: start;
+.slider-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+}
+
+.peak-meter {
+  width: 2px;
+  background-color: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.meter-fill {
+  width: 100%;
+  background: linear-gradient(to bottom, red, lime);
+  transition: height 0.1s ease;
 }
 
 .slider {
@@ -345,13 +411,14 @@ const fetchSystemInfo = async () => {
   border-left: 1px solid rgba(142, 142, 142, 0.3);
   border-right: 1px solid rgba(142, 142, 142, 0.3);
   border-bottom: 1px solid rgba(142, 142, 142, 0.3);
-  height: 95%;
   justify-self: center;
   transition: background 0.1s ease;
 }
 
 .slider::-webkit-slider-thumb {
+  appearance: none;
   -webkit-appearance: none;
+  -moz-appearance: none;
   width: 35px;
   height: 70px;
   background: linear-gradient(to bottom, #444, #222);
@@ -371,5 +438,13 @@ const fetchSystemInfo = async () => {
 
 .slider:hover {
   cursor: pointer;
+}
+
+/* -------- MOBILE RESPONSIVE -------- */
+@media (max-height: 600px) {
+
+  .icon{
+    cursor: pointer;
+  }
 }
 </style>
