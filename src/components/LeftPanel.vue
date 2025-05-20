@@ -38,7 +38,11 @@
       <OhVueIcon name="bi-headphones" class="icon" />
       <div class="slider-wrapper">
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakL * 100}%` }" />
+          <div class="meter-fill"   
+          :style="{
+          height: `${peakL * 100}%`,
+          backgroundColor: getPeakColor(peakL)
+          }" />
         </div>
         <input
           type="range"
@@ -55,7 +59,11 @@
           @touchend="unlockScroll"
         />
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakR * 100}%` }" />
+          <div class="meter-fill"
+          :style="{
+          height: `${peakL * 100}%`,
+          backgroundColor: getPeakColor(peakR)
+          }" />
         </div>
       </div>
     </div>
@@ -67,7 +75,11 @@
       />
       <div class="slider-wrapper">
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakL * 100}%` }" />
+          <div class="meter-fill"
+          :style="{
+          height: `${peakL * 100}%`,
+          backgroundColor: getPeakColor(peakL)
+          }" />
         </div>
         <input
           type="range"
@@ -84,7 +96,11 @@
           @touchend="unlockScroll"
         />
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakR * 100}%` }" />
+          <div class="meter-fill"
+          :style="{
+          height: `${peakL * 100}%`,
+          backgroundColor: getPeakColor(peakR)
+          }" />
         </div>
       </div>
     </div>
@@ -195,6 +211,12 @@ const lockScroll = (event: TouchEvent) => {
 
 const unlockScroll = () => {
   document.body.style.overflow = "";
+};
+
+const getPeakColor = (peak: number): string => {
+  if (peak >= 0.95) return 'red';
+  if (peak >= 0.85  &&  peak < 0.95) return 'orange';
+  return 'limegreen';
 };
 
 const getSliderFill = (value: number): string => {
@@ -315,8 +337,8 @@ const fetchSystemInfo = async () => {
 
 .meter-fill {
   width: 100%;
-  background: linear-gradient(to bottom, red, lime);
-  transition: height 0.1s ease;
+  background: limegreen;
+  transition: height 0.3s ease;
 }
 
 .slider {
@@ -346,6 +368,9 @@ const fetchSystemInfo = async () => {
 }
 
 .slider::-moz-range-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   width: 35px;
   height: 70px;
   background: linear-gradient(to bottom, #444, #222);
