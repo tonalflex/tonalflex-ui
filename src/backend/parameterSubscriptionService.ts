@@ -5,7 +5,7 @@ import {
 } from '@/proto/sushi/sushi_rpc';
 import NotificationController from '@/backend/sushi/notificationController';
 import ParameterController from '@/backend/sushi/parameterController';
-import { BASE_URL } from '@/backend/baseUrl'
+import { BASE_URL, DEBUG } from '@/backend/settings'
 
 export type ParamListener = (value: number) => void;
 
@@ -28,7 +28,7 @@ function paramNameFromId(id: ParameterIdentifier): string {
 
 export async function ensureProcessorSubscription(processorId: number) {
   if (subscriptionMap.has(processorId)) {
-    console.log(`[PSS Subscription] Already exists for processor ${processorId}`);
+    if(DEBUG)console.log(`[PSS Subscription] Already exists for processor ${processorId}`);
     return subscriptionMap.get(processorId)!;
   }
 
@@ -42,12 +42,12 @@ export async function ensureProcessorSubscription(processorId: number) {
       if (!id || id.processorId !== processorId) return;
 
       const key = paramNameFromId(id);
-      console.log(`[PSS ParamUpdate] ${key} = ${update.domainValue}`);
+      if(DEBUG)console.log(`[PSS ParamUpdate] ${key} = ${update.domainValue}`);
       cache.set(key, update.domainValue);
 
       const fns = listeners.get(key);
       if (fns) {
-        console.log(`[PSS Notifying ${fns.size} listener(s) for ${key}]`);
+        if(DEBUG)console.log(`[PSS Notifying ${fns.size} listener(s) for ${key}]`);
         for (const fn of fns) fn(update.domainValue);
       } else {
         console.warn(`[PSS No listeners found for ${key}]`);
@@ -69,13 +69,13 @@ export async function ensureProcessorSubscription(processorId: number) {
         parameterId: param.id,
       });
       cache.set(key, value);
-      console.log(`[PSS Seeded cache] ${key} =`, value);
+      if(DEBUG)console.log(`[PSS Seeded cache] ${key} =`, value);
     } catch (err) {
       console.warn(`[PSS Failed to seed param ${param.name} (${param.id})]`, err);
     }
   }
 
-  console.log(`[PSS Param Info] processor ${processorId}:`, paramInfo.map(p => ({
+  if(DEBUG)console.log(`[PSS Param Info] processor ${processorId}:`, paramInfo.map(p => ({
     name: p.name,
     id: p.id,
     min: p.minDomainValue,
@@ -93,6 +93,6 @@ export function removeProcessorSubscription(processorId: number): void {
   if (entry) {
     entry.remove();
     subscriptionMap.delete(processorId);
-    console.log(`[PSS Removed subscription for processor ${processorId}]`);
+    if(DEBUG)console.log(`[PSS Removed subscription for processor ${processorId}]`);
   }
 }

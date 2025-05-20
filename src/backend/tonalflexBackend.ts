@@ -1,17 +1,19 @@
 import { ref, computed, markRaw, watch } from 'vue';
-import type { Component } from 'vue';
+import type { Component, Ref } from 'vue';
 import SushiAudioGraphController from '@/backend/sushi/audioGraphController';
 import SushiTransportController from "@/backend/sushi/transportController";
-import { removeProcessorSubscription } from "@/backend/parameterSubscriptionService"
+import NotificationController from '@/backend/sushi/notificationController';
+import { removeProcessorSubscription, ensureProcessorSubscription} from "@/backend/parameterSubscriptionService"
 import ButlerController from '@/backend/butler/butler-functions';
 import type { Plugin, Track, PluginMeta, PluginModule } from '@/types/tonalflex';
 import { PluginType_Type } from '@/proto/sushi/sushi_rpc';
 import SushiParameterController from './sushi/parameterController';
-import {BASE_URL} from '@/backend/baseUrl'
+import {BASE_URL, DEBUG} from '@/backend/settings'
 
 const audioGraph = new SushiAudioGraphController(BASE_URL + "/sushi");
 const transportController = new SushiTransportController(BASE_URL + "/sushi");
 const parameterController = new SushiParameterController(BASE_URL + "/sushi");
+const notificationController = new NotificationController(BASE_URL + "/sushi");
 const butler = new ButlerController(BASE_URL + "/butler");
 
 //PLuginChain watchers
@@ -68,7 +70,7 @@ export const loadAvailablePlugins = async () => {
 
       const image = logoSvgs[logoPath] || '/tonalflex.svg';
 
-      console.log('[PluginLoader] metadata for', path, metadata);
+      if(DEBUG)console.log('[PluginLoader] metadata for', path, metadata);
 
       if (!module.Plugin) {
         console.warn(`[PluginLoader] Plugin module missing named export 'Plugin': ${path}`);
@@ -95,7 +97,7 @@ export const loadAvailablePlugins = async () => {
     }
   }
 
-  console.log("plugins: ", plugins.filter(p => !p.isSystem))
+  if(DEBUG)console.log("plugins: ", plugins.filter(p => !p.isSystem))
   userPluginList.value = plugins.filter(p => !p.isSystem);
   systemPluginList.value = plugins.filter(p => p.isSystem);
 };
@@ -104,7 +106,7 @@ export const loadAvailablePlugins = async () => {
 // Something track blabla
 //
 export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
-  console.log('[selectPluginOnTrack] incoming plugin:', plugin);
+  if(DEBUG)console.log('[selectPluginOnTrack] incoming plugin:', plugin);
 
   if (!plugin || typeof plugin !== 'object' || !plugin.id) {
     console.warn('[selectPluginOnTrack] Invalid plugin passed:', plugin);
@@ -126,9 +128,9 @@ export const selectPluginOnTrack = (trackId: number, plugin: Plugin) => {
 
   if (!exists) {
     activePluginUIMap.value[trackId].push(plugin);
-    console.log('[selectPluginOnTrack] Added plugin with processorId:', plugin.processorId);
+    if(DEBUG)console.log('[selectPluginOnTrack] Added plugin with processorId:', plugin.processorId);
   } else {
-    console.log('[selectPluginOnTrack] Plugin already present in UI map:', plugin.id);
+    if(DEBUG)console.log('[selectPluginOnTrack] Plugin already present in UI map:', plugin.id);
   }
 };
 
@@ -214,7 +216,7 @@ async function muteUserTracks(): Promise<void> {
     await setManualMute(id, shouldMute);
   }
 
-  console.log("[Init] Muted all user tracks except index 0");
+  if(DEBUG)console.log("[Init] Muted all user tracks except index 0");
 }
 
 export const getPluginImage = (pluginId: string): string => {
@@ -250,7 +252,7 @@ export const updatePluginSlot = async (
   // Prevent adding the same plugin twice
   const alreadyUsed = track.plugins.some((p, i) => p.id === pluginId && i !== slotIndex);
   if (alreadyUsed) {
-    console.warn(`[updatePluginSlot] Plugin '${pluginId}' already exists on track ${trackId}`);
+    if(DEBUG)console.warn(`[updatePluginSlot] Plugin '${pluginId}' already exists on track ${trackId}`);
     return;
   }
 
@@ -320,7 +322,7 @@ export const initializeTonalflexSession = async (): Promise<void> => {
   const snapshot = await loadSessionSnapshot();
 
   if (snapshot && snapshot.tracks && await isSessionAligned(snapshot.tracks)) {
-    console.log('[Init] Snapshot matches Sushi — restoring UI state');
+    if(DEBUG)console.log('[Init] Snapshot matches Sushi — restoring UI state');
 
     pluginTracks.value = snapshot.tracks.map(track => {
       const plugins = [...track.plugins].map(p => ({
@@ -436,7 +438,7 @@ export const deletePluginFromChain = async (
   track.plugins = updated;
   pluginTracks.value = [...pluginTracks.value];
 
-  console.log(`[DeletePlugin] Removed plugin '${pluginToDelete.id}' from slot ${slotIndex}`);
+  if(DEBUG)console.log(`[DeletePlugin] Removed plugin '${pluginToDelete.id}' from slot ${slotIndex}`);
 
   await rebuildPluginChain(trackId, updated);
   await saveSessionSnapshot();
@@ -449,7 +451,7 @@ export const rebuildPluginChain = async (
   trackId: number,
   plugins: Plugin[]
 ): Promise<void> => {
-  console.log("🔄 [Rebuild] Starting plugin chain rebuild on track", trackId);
+  if(DEBUG)console.log("🔄 [Rebuild] Starting plugin chain rebuild on track", trackId);
   const allProcessors = await audioGraph.getTrackProcessors(trackId);
 
   // Delete all non-internal processors
@@ -530,10 +532,10 @@ export const rebuildPluginChain = async (
     }
 
     selectPluginOnTrack(trackId, track.plugins[slotIndex]);
-    console.log(`[Rebuild] Recreated plugin '${plugin.id}' at slot ${slotIndex}, processorId=${newProc.id}`);
+    if(DEBUG)console.log(`[Rebuild] Recreated plugin '${plugin.id}' at slot ${slotIndex}, processorId=${newProc.id}`);
   }
 
-  console.log(`[Rebuild] Completed plugin chain rebuild for track ${trackId}`);
+  if(DEBUG)console.log(`[Rebuild] Completed plugin chain rebuild for track ${trackId}`);
 };
 
 export const deleteTrackByIndex = async (index: number): Promise<void> => {
@@ -569,7 +571,7 @@ export const deleteTrackByIndex = async (index: number): Promise<void> => {
   }
 
   await saveSessionSnapshot();
-  console.log(`[Track] Cleared and hid track: ${track.name}`);
+  if(DEBUG)console.log(`[Track] Cleared and hid track: ${track.name}`);
 };
 
 export const renameTrack = (index: number, newAlias: string): void => {
@@ -590,7 +592,7 @@ export const showNextTrack = (): void => {
 //
 const saveSessionSnapshot = async (): Promise<void> => {
   const sessionTracks: Track[] = [];
-  console.log("[snapshot] - saving snapshot!");
+  if(DEBUG)console.log("[snapshot] - saving snapshot!");
   for (const track of pluginTracks.value) {
     const pluginsWithParams: Plugin[] = [];
 
@@ -654,7 +656,7 @@ export const loadSessionSnapshot = async (): Promise<{ tracks: Track[], visibleT
   const res = await butler.loadSnapshot();
 
   if (!res.found) {
-    console.log('[Session] No snapshot available.');
+    if(DEBUG)console.log('[Session] No snapshot available.');
     return null;
   }
 
@@ -702,7 +704,7 @@ export const deleteSavedSession = async (name: string): Promise<void> => {
 export const getCurrentBpm = async (): Promise<number> => {
   try {
     const bpm = await transportController.getTempo();
-    console.log(`[BPM] Current tempo: ${bpm}`);
+    if(DEBUG)console.log(`[BPM] Current tempo: ${bpm}`);
     return bpm;
   } catch (err) {
     console.error("[BPM] Failed to get tempo", err);
@@ -714,7 +716,7 @@ export const getCurrentBpm = async (): Promise<number> => {
 export const setCurrentBpm = async (newBpm: number): Promise<void> => {
   try {
     await transportController.setTempo(newBpm);
-    console.log(`[BPM] Tempo updated to ${newBpm}`);
+    if(DEBUG)console.log(`[BPM] Tempo updated to ${newBpm}`);
   } catch (err) {
     console.error("[BPM] Failed to set tempo", err);
   }
@@ -751,21 +753,27 @@ async function getParamId(trackId: number, name: string): Promise<number> {
   return entry.id;
 }
 
+// Manual setter and getters
+//
+// Get track Gain 
 export async function getTrackGain(trackId: number): Promise<number> {
   const id = await getParamId(trackId, "gain");
   return await parameterController.getParameterValue({ processorId: trackId, parameterId: id });
 }
 
+// Set track Gain
 export async function setTrackGain(trackId: number, value: number): Promise<void> {
   const id = await getParamId(trackId, "gain");
   await parameterController.setParameterValue(trackId, id, value);
 }
 
+// Get track Pan
 export async function getTrackPan(trackId: number): Promise<number> {
   const id = await getParamId(trackId, "pan");
   return await parameterController.getParameterValue({ processorId: trackId, parameterId: id });
 }
 
+// Set track Pan
 export async function setTrackPan(trackId: number, value: number): Promise<void> {
   const id = await getParamId(trackId, "pan");
   await parameterController.setParameterValue(trackId, id, value);
@@ -799,3 +807,48 @@ export const setManualMute = async (trackId: number, mute: boolean): Promise<voi
 export const isTrackManuallyMuted = (trackId: number): boolean => {
   return manualMuteState.value[trackId] ?? false;
 };
+
+// Subscribe to params outside of user plugins
+//
+// Subscibe to peakmeter level
+const MIN_DB = -120;
+const MAX_DB = 24;
+
+export async function subscribeToPeakLevel(channelIndex: number): Promise<Ref<number>> {
+  const peakLevel = ref(0);
+
+  const postTrackId = sushiTrackRoles.post.value;
+  if (postTrackId == null) {
+    console.warn(`[PeakMeter] sushiTrackRoles.post is null`);
+    return peakLevel;
+  }
+
+  // ✅ manually fetch processors on the post track
+  const processors = await audioGraph.getTrackProcessors(postTrackId);
+  const peakProc = processors.find(p => p.name === "peakmeter");
+
+  if (!peakProc) {
+    console.warn(`[PeakMeter] PeakMeter plugin not found on track ${postTrackId}`);
+    return peakLevel;
+  }
+
+  const processorId = peakProc.id;
+  const subscription = await ensureProcessorSubscription(processorId);
+  const param = subscription.paramInfo.find(p => p.name === `level_${channelIndex}`);
+
+  if (!param) {
+    console.warn(`[PeakMeter] Param 'level_${channelIndex}' not found on processor ${processorId}`);
+    return peakLevel;
+  }
+
+  const key = `${processorId}:${param.id}`;
+  const listener = (value: number) => {
+    const normalized = (value - MIN_DB) / (MAX_DB - MIN_DB);
+    peakLevel.value = Math.min(1, Math.max(0, normalized));
+  };
+
+  if (!subscription.listeners.has(key)) subscription.listeners.set(key, new Set());
+  subscription.listeners.get(key)!.add(listener);
+
+  return peakLevel;
+}

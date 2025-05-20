@@ -14,7 +14,7 @@ import SushiParameterController from "@/backend/sushi/parameterController";
 import { SushiPluginBackend } from "@/backend/sushiPluginBackend";
 import { getPluginMetaByComponent, listFilesWrapper } from "@/backend/tonalflexBackend";
 import Spinner from "@/components/modules/LoadSpinner.vue"
-import { BASE_URL } from "@/backend/baseUrl";
+import { BASE_URL } from "@/backend/settings";
 const props = defineProps<{
   component: Component;
   processorId: number;

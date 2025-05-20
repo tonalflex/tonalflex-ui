@@ -4,27 +4,39 @@
       <span class="label">Input / Track</span>
     </div>
     <div class="slider-section">
-      <SliderControl
-        label="Input"
-        v-model="inputGain"
-        :knobImage="Knob"
-        :frames="101"
-        :range="[0, 1]"
-      />
-      <SliderControl
-        label="Gain"
-        v-model="trackGain"
-        :knobImage="Knob"
-        :frames="101"
-        :range="[0, 1]"
-      />
-      <SliderControl
-        label="Pan"
-        v-model="trackPan"
-        :knobImage="PanKnob"
-        :frames="101"
-        :range="[-1, 1]"
-      />
+      <div class="main">
+        <div class="label">
+          <span>INPUT</span>
+        </div>
+        <SliderControl
+          label="GAIN"
+          v-model="inputGain"
+          :knobImage="Knob"
+          :frames="101"
+          :range="[0, 1]"
+        />
+      </div>
+      <div class="track">
+        <div class="label">
+          <span>TRACK</span>
+        </div>
+        <div class="knobs">
+          <SliderControl
+            label="Gain"
+            v-model="trackGain"
+            :knobImage="Knob"
+            :frames="101"
+            :range="[0, 1]"
+          />
+          <SliderControl
+            label="Pan"
+            v-model="trackPan"
+            :knobImage="PanKnob"
+            :frames="101"
+            :range="[-1, 1]"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -78,6 +90,7 @@ onMounted(async () => {
     radial-gradient(ellipse at bottom, #4d9f0c, transparent);
   border-radius: 8px;
   user-select: none;
+  margin-top: 10px;
 }
 
 .task-bar{
@@ -101,12 +114,38 @@ onMounted(async () => {
   display: flex;
   flex-direction: row;
   justify-content: center;
-  gap: 3%;
   padding: 20px;
   border: 2px solid rgba(73, 73, 73, 0.7);
   overflow: hidden;
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
+}
+
+.main{
+  display:flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.track{
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.label{
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 2px 2px rgba(24, 24, 24, 0.9);
+  text-align: center;
+  letter-spacing: 0.5px;
+  text-transform: uppercase
+}
+
+.knobs{
+  display: flex;
+  flex-direction: row;
 }
 
 </style>
