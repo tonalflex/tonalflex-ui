@@ -38,7 +38,7 @@
       <OhVueIcon name="bi-headphones" class="icon" />
       <div class="slider-wrapper">
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+          <div class="meter-fill" :style="{ height: `${peakL * 100}%` }" />
         </div>
         <input
           type="range"
@@ -46,16 +46,16 @@
           orient="vertical"
           max="100"
           :style="{
-            background: getSliderFill(volume),
+            background: getSliderFill(currentSliderValue),
           }"
-          v-model="volume"
+          v-model="currentSliderValue"
           class="slider"
           @touchstart="lockScroll"
           @touchmove="lockScroll"
           @touchend="unlockScroll"
         />
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+          <div class="meter-fill" :style="{ height: `${peakR * 100}%` }" />
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@
       />
       <div class="slider-wrapper">
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+          <div class="meter-fill" :style="{ height: `${peakL * 100}%` }" />
         </div>
         <input
           type="range"
@@ -84,7 +84,7 @@
           @touchend="unlockScroll"
         />
         <div class="peak-meter">
-          <div class="meter-fill" :style="{ height: `${peakLevel * 100}%` }" />
+          <div class="meter-fill" :style="{ height: `${peakR * 100}%` }" />
         </div>
       </div>
     </div>
@@ -105,7 +105,7 @@ import {
 import TunerIcon from "@/components/icons/tuner.vue";
 import AmpIcon from "@/components/icons/amplifier-icon.vue";
 import { useMobileHeight} from "@/backend/utils/useMobileHeight"
-import { getTrackGain, setTrackGain, sushiTrackRoles } from "@/backend/tonalflexBackend";
+import { getTrackGain, setTrackGain, sushiTrackRoles, subscribeToPeakLevel } from "@/backend/tonalflexBackend";
 //import SystemController from '@/backend/sushi/systemController';
 //import audioRoutingController from '@/backend/sushi/audioRoutingController'
 import audiooGraphController from "@/backend/sushi/audioGraphController";
@@ -143,22 +143,22 @@ const toggleSlider = () => {
 // State
 const volume = ref(50);
 const masterVolume = ref(0);
-const peakLevel = ref(0.9);
+const peakL = ref(0);
+const peakR = ref(0);
 
-const currentSliderValue = computed(() =>
-  currentSlider.value === 'headphones'
-    ? volume.value
-    : masterVolume.value
-);
-
-const updateCurrentSlider = (e: Event) => {
-  const val = Number((e.target as HTMLInputElement).value);
-  if (isMobile.value && currentSlider.value === 'headphones') {
-    volume.value = val;
-  } else {
-    masterVolume.value = val;
+const currentSliderValue = computed({
+  get: () =>
+    currentSlider.value === 'headphones'
+      ? masterVolume.value // set to masterVolume for now as we only have one input.
+      : masterVolume.value,
+  set: (val: number) => {
+    if (isMobile.value && currentSlider.value === 'headphones') {
+      volume.value = val;
+    } else {
+      masterVolume.value = val;
+    }
   }
-};
+});
 
 watch(masterVolume, (v) => {
   const postId = sushiTrackRoles.post.value;
@@ -173,6 +173,10 @@ const postId = sushiTrackRoles.post.value;
 if (postId != null) {
   const gain = await getTrackGain(postId);
   masterVolume.value = Math.round(gain * 100);
+  const left = await subscribeToPeakLevel(0);
+  const right = await subscribeToPeakLevel(1);
+  watch(left, (v) => (peakL.value = v));
+  watch(right, (v) => (peakR.value = v));
 }
 });
 
@@ -192,8 +196,6 @@ const lockScroll = (event: TouchEvent) => {
 const unlockScroll = () => {
   document.body.style.overflow = "";
 };
-
-const cvInputLevel = ref(0.9);
 
 const getSliderFill = (value: number): string => {
   const percent = Math.max(0, Math.min(100, value));
@@ -216,97 +218,13 @@ const fetchSystemInfo = async () => {
   const tracks = await audioGraphCtrl.getAllTracks();
   console.log("tracks: ", tracks);
 
-  const processorId = 11;
+  const processorId = 10;
   //const testValue = 0.86;
 
  
   // Fetch all parameters for the processor
   const paramList = await parameterCtrl.getProcessorParameters(processorId);
   console.log("param list:", paramList);
- /*
-  const parameterId = firstParam.id;
-  const name = firstParam.name;
-
-  console.log(`🟡 Setting ${name} (ID: ${parameterId}) =`, testValue);
-
-  // Step 2: Set the value
-  await parameterCtrl.setParameterValue(processorId, parameterId, testValue);
-
-  // Step 3: Retrieve the value right after
-  const confirmed = await parameterCtrl.getParameterValue({ processorId, parameterId });
-
-  console.log(`🟢 Retrieved ${name} after set:`, confirmed);
-
-  // Step 4: Compare and verify
-  if (Math.abs(confirmed - testValue) < 0.0001) {
-    console.log("✅ Parameter set was successful!");
-  } else {
-    console.warn("❌ Parameter did not stick — Sushi ignored or reset it.");
-  }
-  */
-    //const version = await systemController.getSushiVersion();
-    //console.log('Sushi Version:', version);
-
-    //const buildInfo = await systemController.getBuildInfo();
-    //console.log('Sushi Build Info:', buildInfo);
-
-    //const inputChannels = await systemController.getInputAudioChannelCount();
-    //console.log('Input Audio Channels:', inputChannels);
-
-    //const outputChannels = await systemController.getOutputAudioChannelCount();
-    //onsole.log('Output Audio Channels:', outputChannels);
-
-    //const inputChan = await audioRoutingCtrl.getAllInputConnections();
-    //console.log("input:", inputChan);
-
-    //const outputChan = await audioRoutingCtrl.getAllOutputConnections();
-    //console.log("input:", outputChan);
-
-    
-    //const processes = await audioGraphCtrl.getAllProcessors();
-    //console.log("processes: ", processes);
-
-    //const param = await parameterCtrl.getProcessorParameters(28);
-    //console.log("parameter: ", param);
-
-    /*
-    const paramValue = await parameterCtrl.getParameterValue({
-      processorId: 28, // the Sushi processor instance
-      parameterId: 1974136700, // the param ID inside that processor
-    });
-
-    console.log("param value:", paramValue);
-
-    // debug for re adding send!
-    const processorId = 28; // e.g., Track1_send
-
-    const props = await parameterCtrl.getProcessorProperties(processorId);
-    console.log("[Props]", props);
-
-    const destinationProp = props.properties.find(
-      (p) =>
-        p.name === "destination_name" ||
-        p.name === "destination" ||
-        p.name === "dest_track"
-    );
-
-    if (!destinationProp) {
-      console.warn("Destination property not found");
-    } else {
-      const value = await parameterCtrl.getPropertyValue({
-        processorId,
-        propertyId: destinationProp.id,
-      });
-      console.log(
-        `Destination property value for processor ${processorId}:`,
-        value
-      );
-    } */
-    //const trackProcessors = await audioGraphCtrl.getTrackProcessors(2);
-    //console.log("processors on track: ", trackProcessors);
-
-    //const trackParams = await parameterCtrl.getTrackParameters(0);
-    //console.log("track Parameters: ", trackParams);
   
 };
 </script>
@@ -389,7 +307,7 @@ const fetchSystemInfo = async () => {
 
 .peak-meter {
   width: 2px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(51, 51, 51, 0.2);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
