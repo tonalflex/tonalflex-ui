@@ -61,7 +61,7 @@
         <div class="peak-meter">
           <div class="meter-fill"
           :style="{
-          height: `${peakL * 100}%`,
+          height: `${peakR * 100}%`,
           backgroundColor: getPeakColor(peakR)
           }" />
         </div>
@@ -98,7 +98,7 @@
         <div class="peak-meter">
           <div class="meter-fill"
           :style="{
-          height: `${peakL * 100}%`,
+          height: `${peakR * 100}%`,
           backgroundColor: getPeakColor(peakR)
           }" />
         </div>
