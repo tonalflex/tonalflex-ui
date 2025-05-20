@@ -189,8 +189,8 @@ const postId = sushiTrackRoles.post.value;
 if (postId != null) {
   const gain = await getTrackGain(postId);
   masterVolume.value = Math.round(gain * 100);
-  const left = await subscribeToPeakLevel(0);
-  const right = await subscribeToPeakLevel(1);
+  const left = await subscribeToPeakLevel(1);
+  const right = await subscribeToPeakLevel(0);
   watch(left, (v) => (peakL.value = v));
   watch(right, (v) => (peakR.value = v));
 }
